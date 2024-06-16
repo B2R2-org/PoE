@@ -1,0 +1,10 @@
+act exploit():
+    read("Type \"")
+    bv key = read(10)
+    read(-1)
+    write(key . "\n")
+    bv flag = rtrim(read(0ahs))
+    return flag
+
+submit:
+    return exploit()

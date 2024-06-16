@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <Product>PoE</Product>
+    <Authors>SoftSec Lab. @ KAIST</Authors>
+    <Company>SoftSec Lab. @ KAIST</Company>
+    <VersionPrefix>1.0.8</VersionPrefix>
+    <VersionSuffix></VersionSuffix>
+    <Description>PoE</Description>
+    <Copyright>Copyright (c) SoftSec Lab. @ KAIST, since 2016</Copyright>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--DefineConstants>$(DefineConstants);LEXERDEBUG</DefineConstants-->
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,10 @@
+act exploit():
+    read("> ")
+    bv key = "I Love PoE"
+    write(key . 0ahs)
+    read(": ")
+    bv flag = rtrim(read(0ahs))
+    return flag
+
+submit:
+    return exploit()

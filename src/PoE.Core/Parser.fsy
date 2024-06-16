@@ -1,0 +1,304 @@
+%{
+
+(*
+
+  Copyright (c) SoftSec Lab. @ KAIST, since 2016
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+ *)
+
+open System.Collections
+open PoE.ASTUtils
+open PoE.BitVectorUtils
+%}
+
+%start poe
+%start expr
+
+// White space
+%token NEWLINE EOF INDENT DEDENT
+
+%token <Annotation> DBGHEX DBGASCII SOLVE
+%token <Annotation> FUN ACT SUBMIT RET FOR TO WHILE BREAK DOT
+%token <Annotation> RPIPE ASSIGN COLON
+%token <Annotation> PLUS MINUS MUL DIV MOD
+%token <Annotation> SHL SHR AND OR XOR NOT
+%token <Annotation> IF THEN ELSE
+%token <Annotation> LPAREN RPAREN LBRACK RBRACK COMMA
+%token <Annotation> EQ NEQ GT GE LT LE
+%token <Annotation> BV INT8 INT16 INT32 INT64 UINT8 UINT16 UINT32 UINT64
+%token <int64 * ExprType * Annotation> INT
+%token <string * Annotation> ID
+%token <BitArray * Annotation> BITVEC
+%token <BitArray * Annotation> MULBITVEC
+%token <string * Annotation> ARCHSTR
+%token <string * Annotation> ASMBLK
+%token <Annotation> TRUE FALSE
+%type <PoE> poe
+%type <Expr> expr
+
+%nonassoc ASMBLK
+%nonassoc COLON
+%nonassoc IF THEN ELSE
+%left EQ NEQ GT GE LT LE
+%left DOT
+%left PLUS MINUS
+%left AND OR XOR
+%left SHL SHR
+%left MUL DIV MOD
+%nonassoc UMINUS NOT
+%nonassoc LBRACK
+%left RPIPE
+%nonassoc MULBITVEC
+%nonassoc DBGHEX DBGASCII SOLVE
+
+%%
+
+poe:
+    decls EOF
+    { { ChallengeBinaryID = ""
+        ExploitType = Unexploitable
+        Decls = List.rev $1
+        Macros = [] } }
+  | NEWLINE decls EOF
+    { { ChallengeBinaryID = ""
+        ExploitType = Unexploitable
+        Decls = List.rev $2
+        Macros = [] } }
+  | error
+    { raise (ParsingException ("Invalid PoE format detected.", None)) }
+
+decls:
+    /* empty */   { [] }
+  | decls DEDENT { $1 }
+  | decls decl DEDENT { $2 :: $1 }
+  | decls globalvardecl NEWLINE { $2 :: $1 }
+  | decls decl error
+    { raise (
+        ParsingException ("Failed to parse a stmt in the declaration",
+                          getAnnotationFromDecl $2)) }
+
+decl:
+    fundecl { $1 }
+  | actdecl { $1 }
+  | submitdecl { $1 }
+
+globalvardecl:
+    typedecl vardefs {
+      let struct (annot, typ) = $1
+      GlobalVarDecl (typ, List.rev $2, annot)
+    }
+
+fundecl:
+    FUN ID LPAREN RPAREN COLON block
+    { assertNonEmptyBlock $6 (snd $2)
+      FunDecl (fst $2, [], $6, $1) }
+  | FUN ID LPAREN paramdecls RPAREN COLON block
+    { assertNonEmptyBlock $7 (snd $2)
+      FunDecl (fst $2, List.rev $4, $7, $1) }
+
+paramdecls:
+    ID { [ (Var $1, TypeAny) ] }
+  | ID COLON typedecl { let struct (annot, typ) = $3 in [ (Var $1, typ) ] }
+  | paramdecls COMMA ID { (Var $3, TypeAny) :: $1 }
+  | paramdecls COMMA ID COLON typedecl
+    { let struct (annot, typ) = $5 in (Var $3, typ) :: $1 }
+
+actdecl:
+    ACT ID LPAREN RPAREN COLON block
+    { assertNonEmptyBlock $6 (snd $2)
+      ActDecl (fst $2, [], $6, $1) }
+  | ACT ID LPAREN paramdecls RPAREN COLON block
+    { assertNonEmptyBlock $7 (snd $2)
+      ActDecl (fst $2, List.rev $4, $7, $1) }
+  | ACT SUBMIT
+    { raise (ParsingException ("`submit' is a reserved keyword.", $2)) }
+
+submitdecl:
+    SUBMIT COLON block
+    { assertNonEmptyBlock $3 $1
+      SubmitDecl ($3, $1) }
+
+block:
+    NEWLINE INDENT stmtlist { List.rev $3 }
+
+stmtlist:
+    /* empty */ { [] }
+  | stmtlist NEWLINE { $1 }
+  | stmtlist stmt NEWLINE { $2 :: $1 }
+  | stmtlist forstmt DEDENT { $2 :: $1 }
+  | stmtlist whilestmt DEDENT { $2 :: $1 }
+  | stmtlist ifblockstmt DEDENT { $2 :: $1 }
+  | stmtlist stmt error
+    { let inc n = n + 1
+      raise (ParsingException ("Failed to parse stmt.",
+                               getAnnotationFromStmt $2 |> Option.map inc)) }
+
+stmt:
+    varstmt { $1 }
+  | callstmt { $1 }
+  | retstmt { $1 }
+  | assignstmt { $1 }
+  | ifsinglestmt { $1 }
+  | breakstmt { $1 }
+  | solvestmt { $1 }
+  | debugstmt { $1 }
+  | nopstmt { $1 }
+
+varstmt:
+    typedecl vardefs {
+      let struct (annot, typ) = $1
+      VarStmt (typ, List.rev $2, annot)
+    }
+
+vardefs:
+    vardefs COMMA vardef { $3 :: $1 }
+  | vardef { [ $1 ] }
+
+vardef:
+    ID { fst $1, Unit }
+  | ID EQ expr { fst $1, $3 }
+  | ID EQ error { raise (ParsingException ("Invalid var definition.", $2)) }
+  | ID ASSIGN expr
+    { raise (ParsingException ("Invalid var definition with `:='", $2)) }
+
+typedecl:
+    BV { struct ($1, TypeAnyBV) }
+  | INT8 { struct ($1, TypeInt8) }
+  | INT16 { struct ($1, TypeInt16) }
+  | INT32 { struct ($1, TypeInt32) }
+  | INT64 { struct ($1, TypeInt64) }
+  | UINT8 { struct ($1, TypeUInt8) }
+  | UINT16 { struct ($1, TypeUInt16) }
+  | UINT32 { struct ($1, TypeUInt32) }
+  | UINT64 { struct ($1, TypeUInt64) }
+
+callstmt:
+    ID LPAREN callparams RPAREN { CallStmt (fst $1, List.rev $3, snd $1) }
+  | ID error
+    { raise (ParsingException ("Invalid expression `" + fst $1 + "'", snd $1)) }
+
+retstmt:
+    RET expr { Return ($2, $1) }
+  | RET error { raise (ParsingException ("Invalid ret expression.", $1)) }
+
+assignstmt:
+    ID ASSIGN expr { AssignStmt (fst $1, $3, snd $1) }
+  | ID LBRACK expr RBRACK ASSIGN expr
+    { let args = [ Var ($1); $3; $3; $6 ]
+      AssignStmt (fst $1, Call ("replace", args, snd $1), snd $1) }
+  | ID LBRACK expr COLON expr RBRACK ASSIGN expr
+    { let args = [ Var ($1); $3; $5; $8 ]
+      AssignStmt (fst $1, Call ("replace", args, snd $1), snd $1) }
+
+forstmt:
+    FOR ID EQ expr TO expr block
+    { assertNonEmptyBlock $7 (snd $2)
+      ForStmt (fst $2, $4, $6, $7, $1) }
+
+whilestmt:
+    WHILE expr block
+    { assertNonEmptyBlock $3 $1
+      WhileStmt ($2, $3, $1) }
+
+ifblockstmt:
+    IF expr THEN block DEDENT ELSE block { CondStmt ($2, $4, $7, $1) }
+  | IF expr THEN stmt NEWLINE ELSE block { CondStmt ($2, [ $4 ], $7, $1) }
+
+ifsinglestmt:
+    IF expr THEN stmt NEWLINE ELSE stmt { CondStmt ($2, [ $4 ], [ $7 ], $1) }
+  | IF expr THEN stmt ELSE stmt { CondStmt ($2, [ $4 ], [ $6 ], $1) }
+  | IF expr THEN block DEDENT ELSE stmt { CondStmt ($2, $4, [ $7 ], $1) }
+
+breakstmt:
+    BREAK { BreakStmt ($1) }
+
+solvestmt:
+    SOLVE expr { SolveStmt ($2, $1) }
+
+debugstmt:
+    DBGHEX expr { DebugStmt ($2, OutHex, $1) }
+  | DBGASCII expr { DebugStmt ($2, OutAscii, $1) }
+
+nopstmt:
+    LPAREN RPAREN { NopStmt ($1) }
+
+expr:
+    valexpr { $1 }
+  | NOT expr { LogicExpr (Not ($2, $1)) }
+  | MINUS expr %prec UMINUS { ArithExpr (Neg ($2, $1)) }
+  | binopexpr { $1 }
+  | boolexpr { $1 }
+  | callexpr { $1 }
+  | IF expr THEN expr ELSE expr { Ite ($2, $4, $6, $1) }
+  | typedecl valexpr { let struct (annot, typ) = $1
+                       TypeCast (typ, $2, annot) }
+  | expr LBRACK expr RBRACK { Extract ($1, $3, $3, $2) }
+  | expr LBRACK expr COLON expr RBRACK { Extract ($1, $3, $5, $2) }
+  | expr RPIPE ID { Call (fst $3, [$1], snd $3) }
+  | asmexpr { $1 }
+
+valexpr:
+    INT { Int ($1) }
+  | ID { Var ($1) }
+  | BITVEC { BitVector ($1) }
+  | MULBITVEC expr { BVMult (BitVector (fst $1, snd $1), $2, snd $1) }
+  | TRUE { BitVector (BitArray ([| true |]), $1) }
+  | FALSE { BitVector (BitArray ([| false |]), $1) }
+  | LPAREN expr RPAREN { $2 }
+  | LPAREN RPAREN { Unit }
+
+binopexpr:
+    expr PLUS expr { ArithExpr (Add ($1, $3, $2)) }
+  | expr MINUS expr { ArithExpr (Sub ($1, $3, $2)) }
+  | expr MUL expr { ArithExpr (Mul ($1, $3, $2)) }
+  | expr DIV expr { ArithExpr (Div ($1, $3, $2)) }
+  | expr MOD expr { ArithExpr (Mod ($1, $3, $2)) }
+  | expr SHL expr { LogicExpr (Shl ($1, $3, $2)) }
+  | expr SHR expr { LogicExpr (Shr ($1, $3, $2)) }
+  | expr AND expr { LogicExpr (And ($1, $3, $2)) }
+  | expr OR expr { LogicExpr (Or ($1, $3, $2)) }
+  | expr XOR expr { LogicExpr (Xor ($1, $3, $2)) }
+  | expr DOT expr { Concat ($1, $3, $2) }
+
+boolexpr:
+    expr EQ expr { BoolExpr (Eq ($1, $3, $2)) }
+  | expr NEQ expr { BoolExpr (Neq ($1, $3, $2)) }
+  | expr GT expr { BoolExpr (Gt ($1, $3, $2)) }
+  | expr GE expr { BoolExpr (Ge ($1, $3, $2)) }
+  | expr LT expr { BoolExpr (Lt ($1, $3, $2)) }
+  | expr LE expr { BoolExpr (Le ($1, $3, $2)) }
+
+callexpr:
+    ID LPAREN callparams RPAREN { Call (fst $1, List.rev $3, snd $1) }
+
+callparams:
+    /* empty */ { [] }
+  | expr { [ $1 ] }
+  | callparams COMMA expr { $3 :: $1 }
+
+asmexpr:
+    ARCHSTR ASMBLK
+    { let asmStr, annot = $2
+      AsmExpr (fst $1, asmStr.Trim(), [], annot) }
+  | ARCHSTR ASMBLK COLON LPAREN callparams RPAREN
+    { let asmStr, annot = $2
+      let replacements = List.rev $5
+      AsmExpr (fst $1, asmStr.Trim(), replacements, annot) }

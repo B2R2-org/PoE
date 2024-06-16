@@ -1,0 +1,606 @@
+{
+
+(*
+
+  Copyright (c) SoftSec Lab. @ KAIST, since 2016
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+ *)
+
+module PoE.Lexer
+
+open System
+open System.Collections
+open System.Collections.Generic
+open FSharp.Text.Lexing
+open PoE.StringUtils
+open PoE.BitVectorUtils
+
+#if LEXERDEBUG
+open System.IO
+
+[<AutoOpen>]
+module internal LexDebug =
+  let inline dbglog fmt =
+    let after (str: string) = Console.WriteLine (str)
+    Printf.ksprintf after fmt
+#endif
+
+type Context = {
+  mutable Offset: int
+  mutable Line: int
+  Stack: Stack<int>
+}
+
+let emptyContext = { Offset = 0; Line = 1; Stack = Stack<int>([| 0 |]) }
+
+let incOffset ctxt = ctxt.Offset <- ctxt.Offset + 1
+
+let incLine ctxt = ctxt.Line <- ctxt.Line + 1
+
+let currPos ctxt =
+  Some (ctxt.Line)
+
+let updateLine ctxt (lexbuf: LexBuffer<_>) =
+  lexbuf.StartPos <- lexbuf.StartPos.NextLine
+  incLine ctxt
+
+let nextlines ctxt lexbuf bs =
+  bs |> Array.iter (fun ch -> if ch = '\n' then updateLine ctxt lexbuf else ())
+
+let lexeme = LexBuffer<_>.LexemeString
+
+let append (writer: IO.BinaryWriter) (str: string) =
+  PoE.StringUtils.strToBytes str
+  |> writer.Write
+
+let hexstrToBitVec lexbuf =
+  let str = lexeme lexbuf
+  hexstrToBV str
+
+let binstrToBitVec lexbuf =
+  let str = lexeme lexbuf
+  binstrToBV str
+
+let parseHexInt lexbuf =
+  let str = lexeme lexbuf
+  match str.Split (':') with
+  | [| hexnum; "i8" |] ->
+    struct (Convert.ToSByte (hexnum, 16) |> int64, TypeInt8)
+  | [| hexnum; "u8" |] ->
+    struct (Convert.ToByte (hexnum, 16) |> int64, TypeUInt8)
+  | [| hexnum; "i16" |] ->
+    struct (Convert.ToInt16 (hexnum, 16) |> int64, TypeInt16)
+  | [| hexnum; "u16" |] ->
+    struct (Convert.ToUInt16 (hexnum, 16) |> int64, TypeUInt16)
+  | [| hexnum; "i32" |] ->
+    struct (Convert.ToInt32 (hexnum, 16) |> int64, TypeInt32)
+  | [| hexnum; "u32" |] ->
+    struct (Convert.ToUInt32 (hexnum, 16) |> int64, TypeUInt32)
+  | [| hexnum; "i64" |] ->
+    struct (Convert.ToInt64 (hexnum, 16), TypeInt64)
+  | [| hexnum; "u64" |] ->
+    struct (Convert.ToUInt64 (hexnum, 16) |> int64, TypeUInt64)
+  | _ -> raise (ParsingException ("Hex integer with a wrong size.",
+                                  Some lexbuf.StartPos.NextLine.pos_lnum))
+
+let parseDecInt lexbuf =
+  let str = lexeme lexbuf
+  match str.Split (':') with
+  | [| decnum; "i8" |] ->
+    struct (Convert.ToSByte (decnum) |> int64, TypeInt8)
+  | [| decnum; "u8" |] ->
+    struct (Convert.ToByte (decnum) |> int64, TypeUInt8)
+  | [| decnum; "i16" |] ->
+    struct (Convert.ToInt16 (decnum) |> int64, TypeInt16)
+  | [| decnum; "u16" |] ->
+    struct (Convert.ToUInt16 (decnum) |> int64, TypeUInt16)
+  | [| decnum; "i32" |] ->
+    struct (Convert.ToInt32 (decnum) |> int64, TypeInt32)
+  | [| decnum; "u32" |] ->
+    struct (Convert.ToUInt32 (decnum) |> int64, TypeUInt32)
+  | [| decnum; "i64" |] ->
+    struct (Convert.ToInt64 (decnum), TypeInt64)
+  | [| decnum; "u64" |] ->
+    struct (Convert.ToUInt64 (decnum) |> int64, TypeUInt64)
+  | _ -> raise (ParsingException ("Decimal integer with a wrong size.",
+                                  Some lexbuf.StartPos.NextLine.pos_lnum))
+}
+
+let e = "" // Epsillon
+let space = [' ']
+let newline = ('\n' | '\r' '\n')
+let identifier = (['A'-'Z' 'a'-'z'] ['A'-'Z' 'a'-'z' '0'-'9' '_']*)
+let comment = '/''/' [^ '\n' '\r']*
+let hexstr = (['0'-'9' 'a'-'f' 'A'-'F']+ 'h''s')
+let binstr = (['0' '1']+ 'b''s')
+let inttypes = ("i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64")
+let hexint = ('0''x' ['0'-'9' 'a'-'f' 'A'-'F']+ ':' inttypes)
+let decint = (['0'-'9']+ ':' inttypes)
+let simpleint = (['0'-'9']['0'-'9']*)
+let simplehex = ('0''x'['0'-'9' 'a'-'f' 'A'-'F']+)
+let archstring = ("x86-64" | "x86")
+
+rule token ctxt =
+  parse
+  | e { let prev = ctxt.Stack.Peek ()
+        let curr = ctxt.Offset
+        lexbuf.StartPos <- { lexbuf.StartPos with pos_lnum = ctxt.Line }
+        if curr > prev then
+#if LEXERDEBUG
+          dbglog "INDENT"
+#endif
+          ctxt.Stack.Push (curr)
+          Parser.INDENT
+        elif curr < prev then
+#if LEXERDEBUG
+          dbglog "DEDENT"
+#endif
+          ctxt.Stack.Pop () |> ignore
+          Parser.DEDENT
+        else
+          realtoken ctxt lexbuf }
+
+and realtoken ctxt =
+  parse
+  | (space* comment? newline)+
+    { let bs = lexbuf.Lexeme
+      ctxt.Offset <- 0
+      indenttoken ctxt lexbuf
+      nextlines ctxt lexbuf bs
+#if LEXERDEBUG
+      dbglog "NEWLINE"
+#endif
+      Parser.NEWLINE }
+  | space       { realtoken ctxt lexbuf }
+  | comment eof {
+#if LEXERDEBUG
+                  dbglog "EOF"
+#endif
+                  Parser.EOF
+                }
+  | eof         {
+#if LEXERDEBUG
+                  dbglog "EOF"
+#endif
+                  Parser.EOF
+                }
+  | '"'         { use stream = new IO.MemoryStream ()
+                  use writer = new IO.BinaryWriter (stream)
+                  stringtoken ctxt stream writer lexbuf }
+  | "fun"       {
+#if LEXERDEBUG
+                  dbglog "FUN"
+#endif
+                  Parser.FUN (currPos ctxt)
+                }
+  | "act"       {
+#if LEXERDEBUG
+                  dbglog "ACT"
+#endif
+                  Parser.ACT (currPos ctxt)
+                }
+  | "submit"    {
+#if LEXERDEBUG
+                  dbglog "SUBMIT"
+#endif
+                  Parser.SUBMIT (currPos ctxt)
+                }
+  | "return"    {
+#if LEXERDEBUG
+                  dbglog "RET"
+#endif
+                  Parser.RET (currPos ctxt)
+                }
+  | "for"    {
+#if LEXERDEBUG
+                  dbglog "FOR"
+#endif
+                  Parser.FOR (currPos ctxt)
+                }
+  | "to"    {
+#if LEXERDEBUG
+                  dbglog "TO"
+#endif
+                  Parser.TO (currPos ctxt)
+                }
+  | "while"    {
+#if LEXERDEBUG
+                  dbglog "while"
+#endif
+                  Parser.WHILE (currPos ctxt)
+                }
+  | "break"     {
+#if LEXERDEBUG
+                  dbglog "break"
+#endif
+                  Parser.BREAK (currPos ctxt)
+                }
+  | "dbghex"    {
+#if LEXERDEBUG
+                  dbglog "DBGHEX"
+#endif
+                  Parser.DBGHEX (currPos ctxt)
+                }
+  | "dbgascii"  {
+#if LEXERDEBUG
+                  dbglog "DBGASCII"
+#endif
+                  Parser.DBGASCII (currPos ctxt)
+                }
+  | "solve"     {
+#if LEXERDEBUG
+                  dbglog "SOLVE"
+#endif
+                  Parser.SOLVE (currPos ctxt)
+                }
+  | "if"        {
+#if LEXERDEBUG
+                  dbglog "IF"
+#endif
+                  Parser.IF (currPos ctxt)
+                }
+  | "then"      {
+#if LEXERDEBUG
+                  dbglog "THEN"
+#endif
+                  Parser.THEN (currPos ctxt)
+                }
+  | "else"      {
+#if LEXERDEBUG
+                  dbglog "ELSE"
+#endif
+                  Parser.ELSE (currPos ctxt)
+                }
+  | "true"      {
+#if LEXERDEBUG
+                  dbglog "TRUE"
+#endif
+                  Parser.TRUE (currPos ctxt)
+                }
+  | "false"     {
+#if LEXERDEBUG
+                  dbglog "FALSE"
+#endif
+                  Parser.FALSE (currPos ctxt)
+                }
+  | "i8"        {
+#if LEXERDEBUG
+                  dbglog "i8"
+#endif
+                  Parser.INT8 (currPos ctxt)
+                }
+  | "i16"       {
+#if LEXERDEBUG
+                  dbglog "i16"
+#endif
+                  Parser.INT16 (currPos ctxt)
+                }
+  | "i32"       {
+#if LEXERDEBUG
+                  dbglog "i32"
+#endif
+                  Parser.INT32 (currPos ctxt)
+                }
+  | "i64"       {
+#if LEXERDEBUG
+                  dbglog "i64"
+#endif
+                  Parser.INT64 (currPos ctxt)
+                }
+  | "u8"        {
+#if LEXERDEBUG
+                  dbglog "u8"
+#endif
+                  Parser.UINT8 (currPos ctxt)
+                }
+  | "u16"       {
+#if LEXERDEBUG
+                  dbglog "u16"
+#endif
+                  Parser.UINT16 (currPos ctxt)
+                }
+  | "u32"       {
+#if LEXERDEBUG
+                  dbglog "u32"
+#endif
+                  Parser.UINT32 (currPos ctxt)
+                }
+  | "u64"       {
+#if LEXERDEBUG
+                  dbglog "u64"
+#endif
+                  Parser.UINT64 (currPos ctxt)
+                }
+  | "bv"        {
+#if LEXERDEBUG
+                  dbglog "bv"
+#endif
+                  Parser.BV (currPos ctxt)
+                }
+  | '('         {
+#if LEXERDEBUG
+                  dbglog "LPAREN"
+#endif
+                  Parser.LPAREN (currPos ctxt)
+                }
+  | ')'         {
+#if LEXERDEBUG
+                  dbglog "RPAREN"
+#endif
+                  Parser.RPAREN (currPos ctxt)
+                }
+  | '['         {
+#if LEXERDEBUG
+                  dbglog "LBRACK"
+#endif
+                  Parser.LBRACK (currPos ctxt)
+                }
+  | ']'         {
+#if LEXERDEBUG
+                  dbglog "RBRACK"
+#endif
+                  Parser.RBRACK (currPos ctxt)
+                }
+  | "{{"        { use stream = new IO.MemoryStream ()
+                  use writer = new IO.BinaryWriter (stream)
+                  asmtoken ctxt stream writer lexbuf
+                }
+  | ','         {
+#if LEXERDEBUG
+                  dbglog "COMMA"
+#endif
+                  Parser.COMMA (currPos ctxt)
+                }
+  | '='         {
+#if LEXERDEBUG
+                  dbglog "EQ"
+#endif
+                  Parser.EQ (currPos ctxt)
+                }
+  | "<>"        {
+#if LEXERDEBUG
+                  dbglog "NEQ"
+#endif
+                  Parser.NEQ (currPos ctxt)
+                }
+  | ">"         {
+#if LEXERDEBUG
+                  dbglog "GT"
+#endif
+                  Parser.GT (currPos ctxt)
+                }
+  | ">="        {
+#if LEXERDEBUG
+                  dbglog "GE"
+#endif
+                  Parser.GE (currPos ctxt)
+                }
+  | "<"         {
+#if LEXERDEBUG
+                  dbglog "LT"
+#endif
+                  Parser.LT (currPos ctxt)
+                }
+  | "<="        {
+#if LEXERDEBUG
+                  dbglog "LE"
+#endif
+                  Parser.LE (currPos ctxt)
+                }
+  | '+'         {
+#if LEXERDEBUG
+                  dbglog "PLUS"
+#endif
+                  Parser.PLUS (currPos ctxt)
+                }
+  | '-'         {
+#if LEXERDEBUG
+                  dbglog "MINUS"
+#endif
+                  Parser.MINUS (currPos ctxt)
+                }
+  | '~'         {
+#if LEXERDEBUG
+                  dbglog "NOT"
+#endif
+                  Parser.NOT (currPos ctxt)
+                }
+  | '*'         {
+#if LEXERDEBUG
+                  dbglog "MUL"
+#endif
+                  Parser.MUL (currPos ctxt)
+                }
+  | "/"         {
+#if LEXERDEBUG
+                  dbglog "DIV"
+#endif
+                  Parser.DIV (currPos ctxt)
+                }
+  | "%"         {
+#if LEXERDEBUG
+                  dbglog "MOD"
+#endif
+                  Parser.MOD (currPos ctxt)
+                }
+  | "<<"        {
+#if LEXERDEBUG
+                  dbglog "SHL"
+#endif
+                  Parser.SHL (currPos ctxt)
+                }
+  | ">>"        {
+#if LEXERDEBUG
+                  dbglog "SHR"
+#endif
+                  Parser.SHR (currPos ctxt)
+                }
+  | '&'         {
+#if LEXERDEBUG
+                  dbglog "AND"
+#endif
+                  Parser.AND (currPos ctxt)
+                }
+  | '|'         {
+#if LEXERDEBUG
+                  dbglog "OR"
+#endif
+                  Parser.OR (currPos ctxt)
+                }
+  | '^'         {
+#if LEXERDEBUG
+                  dbglog "XOR"
+#endif
+                  Parser.XOR (currPos ctxt)
+                }
+  | '.'         {
+#if LEXERDEBUG
+                  dbglog "DOT"
+#endif
+                  Parser.DOT (currPos ctxt)
+                }
+  | ":="        {
+#if LEXERDEBUG
+                  dbglog "ASSIGN"
+#endif
+                  Parser.ASSIGN (currPos ctxt)
+                }
+  | ':'         {
+#if LEXERDEBUG
+                  dbglog "COLON"
+#endif
+                  Parser.COLON (currPos ctxt)
+                }
+  | "|>"        {
+#if LEXERDEBUG
+                  dbglog "RPIPE"
+#endif
+                  Parser.RPIPE (currPos ctxt)
+                }
+  | hexstr      {
+#if LEXERDEBUG
+                  dbglog "BITVEC"
+#endif
+                  Parser.BITVEC (hexstrToBitVec lexbuf, currPos ctxt)
+                }
+  | binstr      {
+#if LEXERDEBUG
+                  dbglog "BITVEC"
+#endif
+                  Parser.BITVEC (binstrToBitVec lexbuf, currPos ctxt)
+                }
+  | hexint      { let struct (v, t) = parseHexInt lexbuf
+#if LEXERDEBUG
+                  dbglog "INT(%d)" v
+#endif
+                  Parser.INT (v, t, currPos ctxt)
+                }
+  | decint      { let struct (v, t) = parseDecInt lexbuf
+#if LEXERDEBUG
+                  dbglog "INT(%d)" v
+#endif
+                  Parser.INT (v, t, currPos ctxt)
+                }
+  | simpleint   { let v = Convert.ToInt64 (lexeme lexbuf)
+#if LEXERDEBUG
+                  dbglog "INT(%d)" v
+#endif
+                  Parser.INT (v, TypeAnyInt, currPos ctxt)
+                }
+  | simplehex   { let v = Convert.ToInt64 (lexeme lexbuf, 16)
+#if LEXERDEBUG
+                  dbglog "INT(%d)" v
+#endif
+                  Parser.INT (v, TypeAnyInt, currPos ctxt)
+                }
+  | archstring  { let arch = lexeme lexbuf
+#if LEXERDEBUG
+                  dbglog "ARCHSTR(%s)" arch
+#endif
+                  Parser.ARCHSTR (arch, currPos ctxt)
+                }
+  | identifier  { let id = lexeme lexbuf
+#if LEXERDEBUG
+                  dbglog "ID(%s)" id
+#endif
+                  Parser.ID (id, currPos ctxt)
+                }
+  | _           { failwithf "Unexpected token (%s) used @ Line %d"
+                            (lexeme lexbuf) ctxt.Line }
+
+and indenttoken ctxt =
+  parse
+  | e           { }
+  | ' '         { incOffset ctxt; indenttoken ctxt lexbuf }
+
+and stringtoken ctxt stream writer =
+  parse
+  | '"' space* 'x'
+    {
+      let s = stream.ToArray ()
+#if LEXERDEBUG
+      dbglog "MULTIPLIED STRING(%A)" s
+#endif
+      Parser.MULBITVEC (s |> bytesToBV, currPos ctxt)
+    }
+  | '"'
+    {
+      let s = stream.ToArray ()
+#if LEXERDEBUG
+      dbglog "STRING(%A)" s
+#endif
+      Parser.BITVEC (s |> bytesToBV, currPos ctxt)
+    }
+  | '\\''"'
+    { writer.Write ('\"'B); stringtoken ctxt stream writer lexbuf }
+  | '\\''\\'
+    { writer.Write ('\\'B); stringtoken ctxt stream writer lexbuf }
+  | '\\''b'
+    { writer.Write ('\b'B); stringtoken ctxt stream writer lexbuf }
+  | '\\''n'
+    { writer.Write ('\n'B); stringtoken ctxt stream writer lexbuf }
+  | '\\''r'
+    { writer.Write ('\r'B); stringtoken ctxt stream writer lexbuf }
+  | '\\''t'
+    { writer.Write ('\t'B); stringtoken ctxt stream writer lexbuf }
+  | '\\''x'(['0'-'9' 'a'-'f' 'A'-'F']['0'-'9' 'a'-'f' 'A'-'F'])
+    { let digit = (lexeme lexbuf).Substring (2)
+      let b = Convert.ToInt32 (digit, 16) |> byte
+      writer.Write (b); stringtoken ctxt stream writer lexbuf }
+  | [^ '"''\\']+
+    { append writer (lexeme lexbuf); stringtoken ctxt stream writer lexbuf }
+  | _
+    { raise (ParsingException ("Illegal: " + (lexeme lexbuf), Some ctxt.Line)) }
+
+and asmtoken ctxt stream writer =
+  parse
+  | "}}"         { let s = stream.ToArray () |> bytesToStr
+#if LEXERDEBUG
+                   dbglog "ASM(%s)" s
+#endif
+                   Parser.ASMBLK (s, currPos ctxt)
+                 }
+  | [^ '}''}']+  { let bs = lexbuf.Lexeme
+                   append writer (lexeme lexbuf)
+                   nextlines ctxt lexbuf bs
+                   asmtoken ctxt stream writer lexbuf }
+  | _
+    { raise (ParsingException ("Illegal: " + (lexeme lexbuf), Some ctxt.Line)) }

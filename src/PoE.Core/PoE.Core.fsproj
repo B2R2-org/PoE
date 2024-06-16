@@ -1,0 +1,54 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Exceptions.fs" />
+    <Compile Include="ExploitType.fs" />
+    <Compile Include="ExprType.fs" />
+    <Compile Include="AST.fs" />
+    <Compile Include="TypeEnvironment.fs" />
+    <Compile Include="StringUtils.fs" />
+    <Compile Include="BitVectorUtils.fs" />
+    <Compile Include="ASTUtils.fs" />
+    <FsYacc Include="Parser.fsy">
+      <OtherFlags>--module PoE.Parser</OtherFlags>
+    </FsYacc>
+    <Compile Include="Parser.fs" />
+    <FsLex Include="Lexer.fsl">
+      <OtherFlags>--unicode</OtherFlags>
+    </FsLex>
+    <Compile Include="Lexer.fs" />
+    <Compile Include="Preprocessor.fs" />
+    <Compile Include="Stream.fs" />
+    <Compile Include="StreamManager.fs" />
+    <Compile Include="Network.fs" />
+    <Compile Include="StdBuf.fs" />
+    <Compile Include="Process.fs" />
+    <Compile Include="EvalTypes.fs" />
+    <Compile Include="BuiltIns.fs" />
+    <Compile Include="TypeChecker.fs" />
+    <Compile Include="Decoder.fs" />
+    <Compile Include="Encoder.fs" />
+    <Compile Include="Factory.fsi" />
+    <Compile Include="Factory.fs" />
+    <Compile Include="SMT.fs" />
+    <Compile Include="Executor.fs" />
+    <None Include="..\..\LICENSE.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FsLexYacc" Version="11.2.0" />
+    <PackageReference Include="Microsoft.Z3" Version="4.12.2" />
+    <PackageReference Include="B2R2.FrontEnd.BinInterface" Version="0.6.1" />
+    <PackageReference Include="B2R2.Peripheral.Assembly.AsmInterface" Version="0.6.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../stdbuf/lib/*" CopyToOutputDirectory="Always" />
+  </ItemGroup>
+
+</Project>

