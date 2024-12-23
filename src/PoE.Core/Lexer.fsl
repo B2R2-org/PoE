@@ -269,6 +269,12 @@ and realtoken ctxt =
 #endif
                   Parser.ELSE (currPos ctxt)
                 }
+  | "elif"      {
+#if LEXERDEBUG
+                  dbglog "ELIF"
+#endif
+                  Parser.ELIF (currPos ctxt)
+                }
   | "true"      {
 #if LEXERDEBUG
                   dbglog "TRUE"

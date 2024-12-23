@@ -40,7 +40,7 @@ open PoE.BitVectorUtils
 %token <Annotation> RPIPE ASSIGN COLON
 %token <Annotation> PLUS MINUS MUL DIV MOD
 %token <Annotation> SHL SHR AND OR XOR NOT
-%token <Annotation> IF THEN ELSE
+%token <Annotation> IF ELIF THEN ELSE
 %token <Annotation> LPAREN RPAREN LBRACK RBRACK COMMA
 %token <Annotation> EQ NEQ GT GE LT LE
 %token <Annotation> BV INT8 INT16 INT32 INT64 UINT8 UINT16 UINT32 UINT64
@@ -219,13 +219,32 @@ whilestmt:
       WhileStmt ($2, $3, $1) }
 
 ifblockstmt:
-    IF expr THEN block DEDENT ELSE block { CondStmt ($2, $4, $7, $1) }
-  | IF expr THEN stmt NEWLINE ELSE block { CondStmt ($2, [ $4 ], $7, $1) }
+    IF expr THEN block DEDENT ifblockstmtaux
+    { CondStmt ($2, $4, $6, $1) }
+  | IF expr THEN stmt NEWLINE ifblockstmtaux
+    { CondStmt ($2, [ $4 ], $6, $1) }
+
+ifblockstmtaux:
+    ELSE block
+    { $2 }
+  | ELIF expr THEN block DEDENT ifblockstmtaux
+    { [ CondStmt ($2, $4, $6, $1) ] }
+  | ELIF expr THEN stmt NEWLINE ifblockstmtaux
+    { [ CondStmt ($2, [ $4 ], $6, $1) ] }
 
 ifsinglestmt:
-    IF expr THEN stmt NEWLINE ELSE stmt { CondStmt ($2, [ $4 ], [ $7 ], $1) }
-  | IF expr THEN stmt ELSE stmt { CondStmt ($2, [ $4 ], [ $6 ], $1) }
-  | IF expr THEN block DEDENT ELSE stmt { CondStmt ($2, $4, [ $7 ], $1) }
+    IF expr THEN block DEDENT ifsinglestmtaux
+    { CondStmt ($2, $4, $6, $1) }
+  | IF expr THEN stmt NEWLINE ifsinglestmtaux
+    { CondStmt ($2, [ $4 ], $6, $1) }
+
+ifsinglestmtaux:
+    ELSE stmt
+    { [ $2 ] }
+  | ELIF expr THEN block DEDENT ifsinglestmtaux
+    { [ CondStmt ($2, $4, $6, $1) ] }
+  | ELIF expr THEN stmt NEWLINE ifsinglestmtaux
+    { [ CondStmt ($2, [ $4 ], $6, $1) ] }
 
 breakstmt:
     BREAK { BreakStmt ($1) }
