@@ -27,6 +27,7 @@ module PoE.Executor
 open System
 open System.Collections
 open B2R2
+open B2R2.RearEnd.Utils
 open B2R2.Peripheral.Assembly
 open PoE.StringUtils
 open PoE.Stream
@@ -243,11 +244,11 @@ let submit state v annot =
   | Some path ->
     let givenflag = IO.File.ReadAllText (path)
     let success = givenflag = myflag
-    if success then printer.PrintLine "Success."
-    else printer.PrintLine ("Given flag: " + givenflag + "; My flag: " + myflag)
+    if success then Terminal.Out.PrintLine "Success."
+    else Terminal.Out.PrintLine $"Given flag: {givenflag}; My flag: {myflag}"
     pushValue state (if success then trueValue else falseValue)
   | None ->
-    printer.PrintLine ("FLAG = [" + myflag + "]")
+    Terminal.Out.PrintLine("FLAG = [" + myflag + "]")
     state
 
 let chooseRightBinOp lhs rhs sop uop annot =
@@ -497,8 +498,11 @@ and evalReplacements acc state replacements annot =
     evalReplacements acc state tl annot
   | [] -> List.rev acc, state
 
+and explode (str: string) =
+  str.ToCharArray() |> List.ofArray
+
 and convertChars str =
-  String.explode str
+  explode str
   |> List.map (fun ch ->
     if ch = ASTUtils.asmVarPlaceholder then None else Some ch)
 
@@ -510,17 +514,17 @@ and substituteAsmArgs acc replacements annot = function
   | Some ch :: rest -> substituteAsmArgs (ch :: acc) replacements annot rest
   | None :: rest ->
     let r, replacements = popReplacement annot replacements
-    let acc = (String.explode r |> List.rev) @ acc
+    let acc = (explode r |> List.rev) @ acc
     substituteAsmArgs acc replacements annot rest
   | [] -> List.rev acc |> List.toArray |> String
 
 and evalAsm state archStr asmStr replacements annot =
-  let isa = ISA.OfString archStr
-  let asm = AsmInterface (isa, 0UL)
+  let isa = ISA archStr
+  let asm = Assembler(isa, 0UL)
   let chars = convertChars asmStr
   let replacements, state = evalReplacements [] state replacements annot
   let s = substituteAsmArgs [] replacements annot chars
-  match asm.AssembleBin s with
+  match asm.Lower s with
   | Ok lst -> Array.concat lst, state
   | Error e -> raise (ParsingException (e, annot))
 
@@ -579,16 +583,16 @@ and evalStmtError state stmt annot =
     BitArray 0
     |> BitVecValue
     |> returnValue state
-  else 
+  else
     let state = { state with StreamErrorSite = None }
     let site = match annot with Some i -> i.ToString () | None -> "-"
     let msg = "A stream was disconnected @ " + site
-    let colored =
-      [ (NoColor, "[")
-        (Yellow, "WARN")
-        (NoColor, "] ")
-        (Red, msg) ]
-    printer.PrintLine colored
+    ColoredString()
+      .Add(NoColor, "[")
+      .Add(Yellow, "WARN")
+      .Add(NoColor, "] ")
+      .Add(Red, msg)
+    |> Terminal.Out.PrintLine
     evalStmt state stmt
 
 and evalStmtRegular state = function
@@ -654,11 +658,12 @@ and evalStmtRegular state = function
       match fmt with
       | OutHex -> toBV annot v |> BitVectorUtils.bvToBytes |> bytesToHexStr
       | OutAscii -> toBV annot v |> BitVectorUtils.bvToBytes |> bytesToStr
-    printer.PrintLine (
-      [ (NoColor, "[")
-        (Red, "DBG")
-        (NoColor, "] ")
-        (Red, str) ])
+    ColoredString()
+      .Add(NoColor, "[")
+      .Add(Red, "DBG")
+      .Add(NoColor, "] ")
+      .Add(Red, str)
+    |> Terminal.Out.PrintLine
     incPC state
 
 and evalProgram state =

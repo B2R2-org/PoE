@@ -37,12 +37,7 @@ module StdBuf =
     elif RuntimeInformation.IsOSPlatform OSPlatform.OSX then OS.MacOSX
     else raise UnknownOSException
 
-  let private getArch () =
-    match RuntimeInformation.OSArchitecture with
-    | Architecture.X86 -> Arch.IntelX86
-    | Architecture.X64 -> Arch.IntelX64
-    | Architecture.Arm64 -> Arch.AARCH64
-    | _ -> Arch.UnknownISA
+  let private getArch () = RuntimeInformation.OSArchitecture
 
   let private getPreloadKey = function
     | OS.Linux -> "LD_PRELOAD"
@@ -66,9 +61,9 @@ module StdBuf =
   let private getArchSuffix os arch =
     match arch with
     | _ when os = OS.MacOSX -> "macos-universal"
-    | Arch.IntelX86 -> "linux-x86"
-    | Arch.IntelX64 -> "linux-x64"
-    | Arch.AARCH64 -> "linux-aarch64"
+    | Architecture.X86 -> "linux-x86"
+    | Architecture.X64 -> "linux-x64"
+    | Architecture.Arm64 -> "linux-aarch64"
     | _ -> raise UnknownOSException
     
   let private setEnvironmentVariable key value sep (pInfo: ProcessStartInfo) =
@@ -82,8 +77,8 @@ module StdBuf =
     let arch = getArch ()
     match os, arch with
     | OS.Linux, _
-    | OS.MacOSX, Arch.IntelX64
-    | OS.MacOSX, Arch.AARCH64 ->
+    | OS.MacOSX, Architecture.X64
+    | OS.MacOSX, Architecture.Arm64 ->
       let suffix = getArchSuffix os arch
       let libDir = Path.GetFullPath AppDomain.CurrentDomain.BaseDirectory
       let libName = $"stdbuf-{suffix}"

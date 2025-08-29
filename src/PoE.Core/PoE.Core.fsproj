@@ -43,8 +43,9 @@
   <ItemGroup>
     <PackageReference Include="FsLexYacc" Version="11.2.0" />
     <PackageReference Include="Microsoft.Z3" Version="4.12.2" />
-    <PackageReference Include="B2R2.FrontEnd.BinInterface" Version="0.6.1" />
-    <PackageReference Include="B2R2.Peripheral.Assembly.AsmInterface" Version="0.6.1" />
+    <PackageReference Include="B2R2.FrontEnd.API" Version="0.9.0" />
+    <PackageReference Include="B2R2.Peripheral.Assembly.API" Version="0.9.0" />
+    <PackageReference Include="B2R2.RearEnd.Utils" Version="0.9.0" />
   </ItemGroup>
 
   <ItemGroup>

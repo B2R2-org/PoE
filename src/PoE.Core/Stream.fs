@@ -27,9 +27,7 @@ module PoE.Stream
 open System
 open System.IO
 open System.Threading.Tasks
-open B2R2
-
-let internal printer = ConsolePrinter ()
+open B2R2.RearEnd.Utils
 
 let [<Literal>] DefaultBufSize = 4096
 let [<Literal>] DefaultTimeout = 5000 (* 5 sec. *)
@@ -39,8 +37,8 @@ let [<Literal>] DefaultTimeout = 5000 (* 5 sec. *)
 let mutable debugStream = false
 
 let printColor (str: string) color =
-  printer.PrintLine [ (color, str.TrimEnd ()) ]
-  printer.Flush ()
+  Terminal.Out.PrintLine(ColoredString(color, str.TrimEnd()))
+  Terminal.Out.Flush ()
 
 let printDbg isOut bs =
   if debugStream then

@@ -26,8 +26,8 @@ namespace PoE
 
 open System
 open System.IO
+open B2R2.FrontEnd
 open B2R2.FrontEnd.BinFile
-open B2R2.FrontEnd.BinInterface
 open PoE.StringUtils
 open PoE.EvalUtils
 open PoE.BitVectorUtils
@@ -40,7 +40,7 @@ module private BuiltInHelper =
     | None ->
       if String.IsNullOrEmpty state.LibcPath then err annot "Libc is not given."
       else
-        let hdl = BinHandle.Init (B2R2.ISA.DefaultISA, state.LibcPath)
+        let hdl = BinHandle(state.LibcPath)
         { state with LibcHandle = Some hdl }, hdl
 
   let toBV annot = function
@@ -296,11 +296,11 @@ type LibcFuncAddr () =
   override __.ParamTypes with get() = [ TypeAnyBV ]
   override __.Execute state args annot =
     let struct (state, name, hdl) = prepareLibcFunc state args annot
-    hdl.BinFile.GetDynamicSymbols true
-    |> Seq.filter (fun s -> s.Name = name)
-    |> Seq.tryHead
+    (hdl.File :?> ELFBinFile).Symbols.DynamicSymbols
+    |> Array.filter (fun s -> s.SymName = name)
+    |> Array.tryHead
     |> function
-      | Some s -> state, IntValue (int64 s.Address, TypeInt64)
+      | Some s -> state, IntValue (int64 s.Addr, TypeInt64)
       | _ -> err annot "Libc function not found."
 
 type LibcStrAddr () =
@@ -311,10 +311,12 @@ type LibcStrAddr () =
   override __.Execute state args annot =
     let struct (state, name, hdl) = prepareLibcFunc state args annot
     let pattern = strToBytes (name + "\x00")
-    hdl.BinFile.GetSegments Permission.Readable
-    |> Seq.tryPick (fun seg ->
-      BinHandle.ReadBytes (hdl, seg.Address, int seg.Size)
-      |> B2R2.ByteArray.findIdxs seg.Address pattern
+    (hdl.File :?> ELFBinFile).ProgramHeaders
+    |> Array.filter (fun ph ->
+      ELF.ProgramHeader.FlagsToPerm ph.PHFlags = Permission.Readable)
+    |> Array.tryPick (fun ph ->
+      hdl.ReadBytes(ph.PHAddr, int ph.PHFileSize)
+      |> B2R2.ByteArray.findIdxs ph.PHAddr pattern
       |> List.tryHead)
     |> function
       | Some addr -> state, IntValue (int64 addr, TypeInt64)

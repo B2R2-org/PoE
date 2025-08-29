@@ -24,7 +24,7 @@
 
 namespace PoE
 
-open B2R2.FrontEnd.BinInterface
+open B2R2.FrontEnd
 
 type ConnectionInfo =
   | Network of ip: string * port: int
