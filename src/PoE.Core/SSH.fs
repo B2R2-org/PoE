@@ -33,7 +33,7 @@ type SSHManager(ip, port, id: string, pw: string) =
   do client.Connect()
   let stream = client.CreateShellStreamNoTerminal()
   interface IStreamManager with
-    member __.Close() = stream.Close()
+    member __.Close() = stream.Close(); client.Disconnect()
     member __.Read n _timeout =
       read stream n
     member __.ReadErr n _timeout =
@@ -45,4 +45,4 @@ type SSHManager(ip, port, id: string, pw: string) =
     member __.Write delay data =
       write stream delay data
   interface IDisposable with
-    member __.Dispose() = stream.Close()
+    member __.Dispose() = stream.Close(); client.Disconnect()
