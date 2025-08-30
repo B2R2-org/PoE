@@ -29,6 +29,7 @@ open B2R2.FrontEnd
 type ConnectionInfo =
   | Network of ip: string * port: int
   | Process of prog: string * args: string
+  | SSH of ip: string * port: int * id: string * pw: string
 
 type EvalState = {
   Program: Stmt []
@@ -92,7 +93,10 @@ module EvalUtils =
     match state.Connection with
     | Process (prog, args) ->
       new ProcessManager (prog, args) :> IStreamManager
-    | Network (ip, port) -> new NetworkManager (ip, port) :> IStreamManager
+    | Network (ip, port) ->
+      new NetworkManager (ip, port) :> IStreamManager
+    | SSH (ip, port, id, pw) ->
+      new SSHManager (ip, port, id, pw) :> IStreamManager
 
   let addFunction state name fnvalue =
     { state with FunctionMap = Map.add name fnvalue state.FunctionMap }

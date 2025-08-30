@@ -787,6 +787,10 @@ let runPoEWithPipe poe typeEnv flagPath prog libcPath args delay =
   let proc = Process (prog, args)
   runPoE proc poe typeEnv flagPath libcPath delay
 
+let runPoEWithSSH poe typeEnv ip port id pw libcPath delay =
+  let net = SSH (ip, port, id, pw)
+  runPoE net poe typeEnv None libcPath delay
+
 let [<Literal>] private resultPath = "payload.dat"
 
 let private writeToPayloadFile v =
