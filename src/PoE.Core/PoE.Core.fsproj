@@ -26,6 +26,7 @@
     <Compile Include="Stream.fs" />
     <Compile Include="StreamManager.fs" />
     <Compile Include="Network.fs" />
+    <Compile Include="SSH.fs" />
     <Compile Include="StdBuf.fs" />
     <Compile Include="Process.fs" />
     <Compile Include="EvalTypes.fs" />
@@ -46,6 +47,7 @@
     <PackageReference Include="B2R2.FrontEnd.API" Version="0.9.0" />
     <PackageReference Include="B2R2.Peripheral.Assembly.API" Version="0.9.0" />
     <PackageReference Include="B2R2.RearEnd.Utils" Version="0.9.0" />
+    <PackageReference Include="SSH.NET" Version="2025.0.0" />
   </ItemGroup>
 
   <ItemGroup>

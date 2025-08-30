@@ -59,6 +59,11 @@ Usage of the PoE replayer:
     Replay the PoE on the remote service running on the IP and the port. The
     replay options must precede the PoE file path <PoE>.
 
+  * poe ssh [replay options] <PoE> <ip> <port> <user> <password>
+
+    Replay the PoE on the remote service running on the IP and the port using
+    the SSH protocol. The replay options must precede the PoE file path <PoE>.
+
   * poe stdin [replay options] <PoE> <bin path> [args]
 
     The replayer will replay the PoE on the given binary (bin path) using stdin.
@@ -141,6 +146,16 @@ let replayWithPipe args =
     |> ignore
   | _ -> eprintfn "Not enough argument(s) given for replay."
 
+let replayWithSSH args =
+  let opt, args = parseReplayOptions (ReplayOption.Init ()) args
+  match args with
+  | poePath :: ip :: port :: id :: pw :: _ ->
+    let poe, typeEnv = Decoder.loadPoEFromPath poePath
+    let port = Convert.ToInt32(port)
+    Executor.runPoEWithSSH poe typeEnv ip port id pw opt.ReplayLibcPath 1
+    |> ignore
+  | _ -> eprintfn "Not enough argument(s) given for replay."
+
 let parseCommands (cmd: string) args =
   let args = Array.toList args
   match cmd.ToLower () with
@@ -149,6 +164,7 @@ let parseCommands (cmd: string) args =
   | "pp" -> canonicalizePoE args
   | "net" -> replayWithNetwork args
   | "stdin" -> replayWithPipe args
+  | "ssh" -> replayWithSSH args
   | _ -> eprintfn "Unknown command {%s}" cmd; errorExit ()
 
 let realMain (argv: string []) =

