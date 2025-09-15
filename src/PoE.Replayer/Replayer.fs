@@ -25,14 +25,16 @@
 module PoE.Replayer
 
 open System
+open System.IO
 
 type ReplayOption = {
   ReplayLibcPath: string
   ReplayFlagInfo: (string * int) option
+  ReplayOutputPath: string option
 }
 with
   static member Init () =
-    { ReplayLibcPath = ""; ReplayFlagInfo = None }
+    { ReplayLibcPath = ""; ReplayFlagInfo = None; ReplayOutputPath = None }
 
 let errorExit () =
   eprintfn """
@@ -79,6 +81,8 @@ Replay options:
                               create a random flag of the given length in the
                               given local path to test the exploit. This option
                               is valid only with the stdin command.
+  -o <output path>          : Specify a path to store PoE's output, which is a
+                              return value of PoE's submission (submit block).
 """
   exit 1
 
@@ -106,17 +110,32 @@ let rec parseReplayOptions replayOpt = function
   | "-f" :: flagpath :: flaglen :: opts ->
     let flag = Some (flagpath, Convert.ToInt32 flaglen)
     parseReplayOptions { replayOpt with ReplayFlagInfo = flag } opts
+  | "-o" :: outpath :: opts ->
+    parseReplayOptions { replayOpt with ReplayOutputPath = Some outpath } opts
   | args -> replayOpt, args
 
-let replayWithNetwork args =
+let postprocessReplay opt ret =
+  match opt.ReplayOutputPath with
+  | None -> ()
+  | Some path ->
+    match ret with
+    | BitVecValue bv -> File.WriteAllBytes(path, BitVectorUtils.bvToBytes bv)
+    | _ -> eprintfn "The return value is not a bitvector."
+
+let replay args fn =
   let opt, args = parseReplayOptions (ReplayOption.Init ()) args
+  match fn opt args with
+  | None -> ()
+  | Some (ret, _, _) -> postprocessReplay opt ret
+
+let replayWithNetwork opt args =
   match args with
   | poePath :: ip :: port :: _ ->
     let poe, typeEnv = Decoder.loadPoEFromPath poePath
     let port = Convert.ToInt32(port)
     Executor.runPoEWithNetwork poe typeEnv ip port opt.ReplayLibcPath 1
-    |> ignore
-  | _ -> eprintfn "Not enough argument(s) given for replay."
+    |> Some
+  | _ -> eprintfn "Not enough argument(s) given for replay."; None
 
 let prepareFlag = function
   | Some (flagPath: string, size) ->
@@ -131,8 +150,7 @@ let prepareFlag = function
     Some flagPath
   | None -> None
 
-let replayWithPipe args =
-  let opt, args = parseReplayOptions (ReplayOption.Init ()) args
+let replayWithPipe opt args =
   match args with
   | poePath :: binPath :: args ->
     if IO.File.Exists (binPath) then ()
@@ -143,18 +161,17 @@ let replayWithPipe args =
     let flagPath = prepareFlag opt.ReplayFlagInfo
     let libcPath = opt.ReplayLibcPath
     Executor.runPoEWithPipe poe typeEnv flagPath binPath libcPath args 1
-    |> ignore
-  | _ -> eprintfn "Not enough argument(s) given for replay."
+    |> Some
+  | _ -> eprintfn "Not enough argument(s) given for replay."; None
 
-let replayWithSSH args =
-  let opt, args = parseReplayOptions (ReplayOption.Init ()) args
+let replayWithSSH opt args =
   match args with
   | poePath :: ip :: port :: id :: pw :: _ ->
     let poe, typeEnv = Decoder.loadPoEFromPath poePath
     let port = Convert.ToInt32(port)
     Executor.runPoEWithSSH poe typeEnv ip port id pw opt.ReplayLibcPath 1
-    |> ignore
-  | _ -> eprintfn "Not enough argument(s) given for replay."
+    |> Some
+  | _ -> eprintfn "Not enough argument(s) given for replay."; None
 
 let parseCommands (cmd: string) args =
   let args = Array.toList args
@@ -162,9 +179,9 @@ let parseCommands (cmd: string) args =
   | "eval" -> evalAndPrint (String.concat " " args)
   | "parse" -> parseAndPrint args
   | "pp" -> canonicalizePoE args
-  | "net" -> replayWithNetwork args
-  | "stdin" -> replayWithPipe args
-  | "ssh" -> replayWithSSH args
+  | "net" -> replay args replayWithNetwork
+  | "stdin" -> replay args replayWithPipe
+  | "ssh" -> replay args replayWithSSH
   | _ -> eprintfn "Unknown command {%s}" cmd; errorExit ()
 
 let realMain (argv: string []) =

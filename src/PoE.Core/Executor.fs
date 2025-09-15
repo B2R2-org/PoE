@@ -777,7 +777,7 @@ let private runPoE conn poe typeEnv flagPath libcPath delay =
   if not state.IsReturning then err None "No return found in submit."
   let ret = popValue state None |> snd
   printFlag ret
-  isEqual ret trueValue, List.rev state.WriteData, state.SubmittedFlag
+  ret, List.rev state.WriteData, state.SubmittedFlag
 
 let runPoEWithNetwork poe typeEnv ip port libcPath delay =
   let net = Network (ip, port)
