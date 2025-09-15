@@ -30,7 +30,7 @@ open System.Collections
 
 let bytesToBV (bytes: byte []) = BitArray (bytes)
 
-let strToBV (str: string) = BitArray (Text.Encoding.ASCII.GetBytes (str))
+let strToBV str = str |> StringUtils.strToBytes |> bytesToBV
 
 let hexstrToBV (str: string) =
   let str = str.Substring (0, String.length str - 2)

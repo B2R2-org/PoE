@@ -25,10 +25,11 @@
 module PoE.StringUtils
 
 open System
+open System.Text
 
-let bytesToStr (bytes: byte []) = Array.map char bytes |> String
+let bytesToStr (bytes: byte []) = Encoding.Latin1.GetString bytes
 
 let bytesToHexStr (bytes: byte []) =
   (BitConverter.ToString bytes).Replace("-", String.Empty)
 
-let strToBytes (str: string) = str.ToCharArray () |> Array.map byte
+let strToBytes (str: string) = Encoding.Latin1.GetBytes str
