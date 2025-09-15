@@ -330,6 +330,35 @@ type Pause () =
     Console.ReadLine () |> ignore
     state, UnknownValue TypeUnit
 
+type SetArg () =
+  inherit BuiltInFunc ()
+  override __.Name with get() = "setArg"
+  override __.ReturnType with get() = TypeUnit
+  override __.ParamTypes with get() = [ TypeAnyBV ]
+  override __.Execute state args annot =
+    match args with
+    | BitVecValue v :: _ ->
+      match state.Connection with
+      | Process _ when state.Stream.IsSome ->
+        err annot "setArg should be called outside of any action functions."
+      | Process (prog, _) ->
+        { state with Connection = Process (prog, bvToBytes v |> bytesToStr) },
+        UnknownValue TypeUnit
+      | _ -> err annot "setArg is only for process connection."
+    | _ -> err annot "Invalid parameter for setArg."
+
+type GetArg () =
+  inherit BuiltInFunc ()
+  override __.Name with get() = "getArg"
+  override __.ReturnType with get() = TypeAnyBV
+  override __.ParamTypes with get() = []
+  override __.Execute state _args annot =
+    match state.Connection with
+    | Process (_, arg) ->
+      let bv = arg |> strToBV |> BitVecValue
+      state, bv
+    | _ -> err annot "getArg is only for process connection."
+
 module BuiltIns =
   let functions =
     [| Read () :> BuiltInFunc
@@ -347,4 +376,6 @@ module BuiltIns =
        Dump () :> BuiltInFunc
        LibcFuncAddr () :> BuiltInFunc
        LibcStrAddr () :> BuiltInFunc
-       Pause () :> BuiltInFunc |]
+       Pause () :> BuiltInFunc
+       SetArg () :> BuiltInFunc
+       GetArg () :> BuiltInFunc |]
