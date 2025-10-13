@@ -638,12 +638,12 @@ and evalStmtRegular state = function
     if cond = trueValue then
       let state =
         evalProgram { state with Program = List.toArray tbody; ProgCounter = 0 }
-      if state.IsReturning then state
+      if state.IsReturning || state.IsBreaking then state
       else incPC { state with Program = oldprog; ProgCounter = oldpc }
     elif not (List.isEmpty fbody) then
       let state =
         evalProgram { state with Program = List.toArray fbody; ProgCounter = 0 }
-      if state.IsReturning then state
+      if state.IsReturning || state.IsReturning then state
       else incPC { state with Program = oldprog; ProgCounter = oldpc }
     else incPC state
   | BreakStmt (_) -> { state with ProgCounter = -1; IsBreaking = true }
