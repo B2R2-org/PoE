@@ -87,6 +87,14 @@ and ArithExpr =
   | Div of Expr * Expr * Annotation
   /// Remainder.
   | Mod of Expr * Expr * Annotation
+  /// Bitwise AND.
+  | BAnd of Expr * Expr * Annotation
+  /// Bitwise OR.
+  | BOr of Expr * Expr * Annotation
+  /// Bitwise XOR.
+  | BXor of Expr * Expr * Annotation
+  /// Bitwise negation.
+  | BNot of Expr * Annotation
 
 and LogicExpr =
   /// Shift left.

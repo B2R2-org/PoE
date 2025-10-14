@@ -40,6 +40,7 @@ open PoE.BitVectorUtils
 %token <Annotation> RPIPE ASSIGN COLON
 %token <Annotation> PLUS MINUS MUL DIV MOD
 %token <Annotation> SHL SHR AND OR XOR NOT
+%token <Annotation> BAND BOR BXOR BNOT
 %token <Annotation> IF ELIF THEN ELSE
 %token <Annotation> LPAREN RPAREN LBRACK RBRACK COMMA
 %token <Annotation> EQ NEQ GT GE LT LE
@@ -261,8 +262,7 @@ nopstmt:
 
 expr:
     valexpr { $1 }
-  | NOT expr { LogicExpr (Not ($2, $1)) }
-  | MINUS expr %prec UMINUS { ArithExpr (Neg ($2, $1)) }
+  | unopexpr { $1 }
   | binopexpr { $1 }
   | boolexpr { $1 }
   | callexpr { $1 }
@@ -284,6 +284,11 @@ valexpr:
   | LPAREN expr RPAREN { $2 }
   | LPAREN RPAREN { Unit }
 
+unopexpr:
+    NOT expr { LogicExpr (Not ($2, $1)) }
+  | BNOT expr { ArithExpr (BNot ($2, $1)) }
+  | MINUS expr %prec UMINUS { ArithExpr (Neg ($2, $1)) }
+
 binopexpr:
     expr PLUS expr { ArithExpr (Add ($1, $3, $2)) }
   | expr MINUS expr { ArithExpr (Sub ($1, $3, $2)) }
@@ -295,6 +300,9 @@ binopexpr:
   | expr AND expr { LogicExpr (And ($1, $3, $2)) }
   | expr OR expr { LogicExpr (Or ($1, $3, $2)) }
   | expr XOR expr { LogicExpr (Xor ($1, $3, $2)) }
+  | expr BAND expr { ArithExpr (BAnd ($1, $3, $2)) }
+  | expr BOR expr { ArithExpr (BOr ($1, $3, $2)) }
+  | expr BXOR expr { ArithExpr (BXor ($1, $3, $2)) }
   | expr DOT expr { Concat ($1, $3, $2) }
 
 boolexpr:

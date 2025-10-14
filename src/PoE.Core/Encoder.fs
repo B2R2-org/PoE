@@ -109,14 +109,18 @@ and ppArithExpr builder = function
   | Mul (lhs, rhs, _) -> ppBinOp builder lhs rhs "*"
   | Div (lhs, rhs, _) -> ppBinOp builder lhs rhs "/"
   | Mod (lhs, rhs, _) -> ppBinOp builder lhs rhs "%"
+  | BAnd (lhs, rhs, _) -> ppBinOp builder lhs rhs "&"
+  | BOr (lhs, rhs, _) -> ppBinOp builder lhs rhs "|"
+  | BXor (lhs, rhs, _) -> ppBinOp builder lhs rhs "^"
+  | BNot (e, _) -> ppUnOp builder e "~"
 
 and ppLogicExpr builder = function
   | Shl (lhs, rhs, _) -> ppBinOp builder lhs rhs "<<"
   | Shr (lhs, rhs, _) -> ppBinOp builder lhs rhs ">>"
-  | And (lhs, rhs, _) -> ppBinOp builder lhs rhs "&"
-  | Or (lhs, rhs, _) -> ppBinOp builder lhs rhs "|"
-  | Xor (lhs, rhs, _) -> ppBinOp builder lhs rhs "^"
-  | Not (e, _) -> ppUnOp builder e "~"
+  | And (lhs, rhs, _) -> ppBinOp builder lhs rhs "and"
+  | Or (lhs, rhs, _) -> ppBinOp builder lhs rhs "or"
+  | Xor (lhs, rhs, _) -> ppBinOp builder lhs rhs "xor"
+  | Not (e, _) -> ppUnOp builder e "not"
 
 and ppAppWrap builder keyword args e =
   append builder "("

@@ -130,6 +130,12 @@ let trueValue = BitVecValue (BitArray ([| true |]))
 
 let falseValue = BitVecValue (BitArray ([| false |]))
 
+let isTrue v = v = trueValue
+
+let isFalse v = v = falseValue
+
+let isBoolean v = isTrue v || isFalse v
+
 let eq lhs rhs = if isEqual lhs rhs then trueValue else falseValue
 
 let neq lhs rhs = if isEqual lhs rhs then falseValue else trueValue
@@ -192,13 +198,28 @@ let ashr v1 v2 annot =
   let n = n1 >>> (Convert.ToInt32 n2)
   IntValue (adjustIntByType n t annot, t)
 
-let logand v1 v2 annot = signedArith v1 v2 ( &&& ) annot
+let and' lhs rhs =
+  if isTrue lhs && isTrue rhs then trueValue else falseValue
 
-let logor v1 v2 annot = signedArith v1 v2 (|||) annot
+let or' lhs rhs =
+  if isTrue lhs || isTrue rhs then trueValue else falseValue
 
-let logxor v1 v2 annot = signedArith v1 v2 (^^^) annot
+let xor lhs rhs =
+  if (isTrue lhs && isFalse rhs) || (isFalse lhs && isTrue rhs) then trueValue
+  else falseValue
 
-let lognot v annot =
+let not' v annot =
+  if isTrue v then falseValue
+  elif isFalse v then trueValue
+  else err annot "Invalid value for not."
+
+let band v1 v2 annot = signedArith v1 v2 ( &&& ) annot
+
+let bor v1 v2 annot = signedArith v1 v2 (|||) annot
+
+let bxor v1 v2 annot = signedArith v1 v2 (^^^) annot
+
+let bnot v annot =
   let struct (n, t) = toSignedNum annot v
   IntValue (adjustIntByType (~~~ n) t annot, t)
 
@@ -293,6 +314,13 @@ let rec obtainVars state expr annot map =
     obtainVars state lhs annot map |> obtainVars state rhs annot
   | ArithExpr (Mod (lhs, rhs, annot)) ->
     obtainVars state lhs annot map |> obtainVars state rhs annot
+  | ArithExpr (BAnd (lhs, rhs, annot)) ->
+    obtainVars state lhs annot map |> obtainVars state rhs annot
+  | ArithExpr (BOr (lhs, rhs, annot)) ->
+    obtainVars state lhs annot map |> obtainVars state rhs annot
+  | ArithExpr (BXor (lhs, rhs, annot)) ->
+    obtainVars state lhs annot map |> obtainVars state rhs annot
+  | ArithExpr (BNot (e, annot)) -> obtainVars state e annot map
   | LogicExpr (Shl (lhs, rhs, annot)) ->
     obtainVars state lhs annot map |> obtainVars state rhs annot
   | LogicExpr (Shr (lhs, rhs, annot)) ->
@@ -358,6 +386,13 @@ and evalAdaptiveIntBinOp state lhs rhs sop uop annot =
   let op = chooseRightBinOp lhs rhs sop uop annot
   state, op lhs rhs annot
 
+and evalLogicalBinOp state lhs rhs op annot =
+  let state, lhs = evalExpr state lhs annot
+  let state, rhs = evalExpr state rhs annot
+  if not <| isBoolean rhs || not <| isBoolean lhs then
+    err annot "Invalid logical operand."
+  state, op lhs rhs
+
 and evalBoolExpr state = function
   | Eq (lhs, rhs, annot) -> evalBinOpNoTypecheck state lhs rhs eq annot
   | Neq (lhs, rhs, annot) -> evalBinOpNoTypecheck state lhs rhs neq annot
@@ -374,15 +409,20 @@ and evalArithExpr state = function
   | Mul (lhs, rhs, annot) -> evalBinOpTypeCheck state lhs rhs mul annot
   | Div (lhs, rhs, annot) -> evalAdaptiveIntBinOp state lhs rhs sdiv div annot
   | Mod (lhs, rhs, annot) -> evalAdaptiveIntBinOp state lhs rhs srem rem annot
+  | BAnd (lhs, rhs, annot) -> evalBinOpTypeCheck state lhs rhs band annot
+  | BOr (lhs, rhs, annot) -> evalBinOpTypeCheck state lhs rhs bor annot
+  | BXor (lhs, rhs, annot) -> evalBinOpTypeCheck state lhs rhs bxor annot
+  | BNot (e, annot) ->
+    let state, v = evalExpr state e annot in state, bnot v annot
 
 and evalLogicExpr state = function
   | Shl (lhs, rhs, annot) -> evalBinOpTypeCheck state lhs rhs shl annot
   | Shr (lhs, rhs, annot) -> evalAdaptiveIntBinOp state lhs rhs ashr shr annot
-  | And (lhs, rhs, annot) -> evalBinOpTypeCheck state lhs rhs logand annot
-  | Or (lhs, rhs, annot) -> evalBinOpTypeCheck state lhs rhs logor annot
-  | Xor (lhs, rhs, annot) -> evalBinOpTypeCheck state lhs rhs logxor annot
+  | And (lhs, rhs, annot) -> evalLogicalBinOp state lhs rhs and' annot
+  | Or (lhs, rhs, annot) -> evalLogicalBinOp state lhs rhs or' annot
+  | Xor (lhs, rhs, annot) -> evalLogicalBinOp state lhs rhs xor annot
   | Not (e, annot) ->
-    let state, v = evalExpr state e annot in state, lognot v annot
+    let state, v = evalExpr state e annot in state, not' v annot
 
 and evalTypeCast state targetType e annot =
   let state, v = evalExpr state e annot
