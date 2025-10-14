@@ -52,35 +52,46 @@ end.
 
 Note, all the above literals have a bitvector type, although the syntax differs.
 
-## Number Arithmetic
+## Operators
 
-PoE supports most regular arithmetic operators, such as `+`, `-`, `*`, `/`, `%`,
-and etc. All these operators assume that operands have the same *number*
-type. If otherwise, the PoE will abort. For example, `1:i32 + 1:u32` will not
-type-check. However, `1:i32 + 1` will type-check because `1` will be implicitly
-converted to `1:i32` by the interpreter. `42hs + 42hs` will fail because the
-addition operator will not work with bitvector types. The below table summarizes
-all the operators defined in PoE.
+PoE supports most regular arithmetic/bitwise operators, such as `+`, `-`, `*`,
+`/`, `%`, and etc. Especially, all arithmetic operators assume that operands
+have the *same* number type. Otherwise, a type error will be raised.
 
-| Operator | Meaning               |
-|----------|-----------------------|
-| `+`      | Plus                  |
-| `-`      | Minus                 |
-| `/`      | Divide                |
-| `*`      | Multiply              |
-| `%`      | Modulo                |
-| `<<`     | Shift-left            |
-| `>>`     | Shift-right           |
-| `&`      | Logical And           |
-| `\|`     | Logical Or            |
-| `^`      | Logical Xor           |
-| `~`      | Logical NOT           |
-| `<`      | Less-than             |
-| `>`      | Greater-than          |
-| `<=`     | Less-than or equal    |
-| `>=`     | Greater-than or equal |
-| `=`      | Equal                 |
-| `<>`     | Not equal             |
+For example, `1:i32 + 1:u32` will be accepted by the type-checker. Also,
+`1:i32 + 1` will be accepted, since `1` will be implicitly converted to `1:i32`
+by the interpreter. However, `42hs + 42hs` will be rejected because the addition
+operator will not work with bitvector types.
+
+The below table summarizes all the operators defined in PoE:
+
+| Operator | Meaning               | Operand Kind |
+|----------|-----------------------|--------------|
+| `+`      | Plus                  | Number       |
+| `-`      | Minus                 | Number       |
+| `/`      | Divide                | Number       |
+| `*`      | Multiply              | Number       |
+| `%`      | Modulo                | Number       |
+| `<<`     | Shift-left            | Number       |
+| `>>`     | Shift-right           | Number       |
+| `&`      | Bitwise And           | Number       |
+| `\|`     | Bitwise Or            | Number       |
+| `^`      | Bitwise Xor           | Number       |
+| `~`      | Bitwise Not           | Number       |
+| `<`      | Less-than             | Number       |
+| `>`      | Greater-than          | Number       |
+| `<=`     | Less-than or equal    | Number       |
+| `>=`     | Greater-than or equal | Number       |
+| `and`    | Logical And           | Boolean      |
+| `or`     | Logical Or            | Boolean      |
+| `xor`    | Logical Xor           | Boolean      |
+| `not`    | Logical Not           | Boolean      |
+| `=`      | Equal                 | Any          |
+| `<>`     | Not equal             | Any          |
+
+In the above table, `Any` means that the operator works with any type. `Boolean`
+means that the operator works with boolean values only (`true` or `false`),
+which are actually one-bit bitvectors.
 
 ## Evaluating Values
 
