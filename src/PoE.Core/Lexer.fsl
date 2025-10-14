@@ -425,9 +425,9 @@ and realtoken ctxt =
                 }
   | '~'         {
 #if LEXERDEBUG
-                  dbglog "NOT"
+                  dbglog "BNOT"
 #endif
-                  Parser.NOT (currPos ctxt)
+                  Parser.BNOT (currPos ctxt)
                 }
   | '*'         {
 #if LEXERDEBUG
@@ -461,21 +461,45 @@ and realtoken ctxt =
                 }
   | '&'         {
 #if LEXERDEBUG
-                  dbglog "AND"
+                  dbglog "BAND"
 #endif
-                  Parser.AND (currPos ctxt)
+                  Parser.BAND (currPos ctxt)
                 }
   | '|'         {
 #if LEXERDEBUG
-                  dbglog "OR"
+                  dbglog "BOR"
 #endif
-                  Parser.OR (currPos ctxt)
+                  Parser.BOR (currPos ctxt)
                 }
   | '^'         {
 #if LEXERDEBUG
-                  dbglog "XOR"
+                  dbglog "BXOR"
 #endif
+                  Parser.BXOR (currPos ctxt)
+                }
+  | "and"       {
+  #if LEXERDEBUG
+                  dbglog "AND"
+  #endif
+                  Parser.AND (currPos ctxt)
+                }
+  | "or"        {
+  #if LEXERDEBUG
+                  dbglog "OR"
+  #endif
+                  Parser.OR (currPos ctxt)
+                }
+  | "xor"       {
+  #if LEXERDEBUG
+                  dbglog "XOR"
+  #endif
                   Parser.XOR (currPos ctxt)
+                }
+  | "not"       {
+  #if LEXERDEBUG
+                  dbglog "NOT"
+  #endif
+                  Parser.NOT (currPos ctxt)
                 }
   | '.'         {
 #if LEXERDEBUG

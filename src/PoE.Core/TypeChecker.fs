@@ -199,12 +199,17 @@ module TypeChecker =
       else TypeEnvironment.Err annot "Comparison must be done with integers."
 
   and computeArithExprType env = function
-    | Neg (e, _) -> computeExprType env e
+    | Neg (e, _)
+    | BNot (e, _) ->
+      computeExprType env e
     | Add (lhs, rhs, annot)
     | Sub (lhs, rhs, annot)
     | Mul (lhs, rhs, annot)
     | Div (lhs, rhs, annot)
-    | Mod (lhs, rhs, annot) ->
+    | Mod (lhs, rhs, annot)
+    | BAnd (lhs, rhs, annot)
+    | BOr (lhs, rhs, annot)
+    | BXor (lhs, rhs, annot) ->
       let ltype = computeExprType env lhs
       let rtype = computeExprType env rhs
       meetType annot ltype rtype
