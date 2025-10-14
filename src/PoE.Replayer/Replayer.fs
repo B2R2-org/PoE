@@ -31,10 +31,14 @@ type ReplayOption = {
   ReplayLibcPath: string
   ReplayFlagInfo: (string * int) option
   ReplayOutputPath: string option
+  ReplayStreamTimeout: int option
 }
 with
   static member Init () =
-    { ReplayLibcPath = ""; ReplayFlagInfo = None; ReplayOutputPath = None }
+    { ReplayLibcPath = ""
+      ReplayFlagInfo = None
+      ReplayOutputPath = None
+      ReplayStreamTimeout = None }
 
 let errorExit () =
   eprintfn """
@@ -83,6 +87,8 @@ Replay options:
                               is valid only with the stdin command.
   -o <output path>          : Specify a path to store PoE's output, which is a
                               return value of PoE's submission (submit block).
+  --stream-timeout <time>   : Set a timeout for read and write operations when
+                              communicating over a stream (default: 5 seconds).
 """
   exit 1
 
@@ -112,6 +118,9 @@ let rec parseReplayOptions replayOpt = function
     parseReplayOptions { replayOpt with ReplayFlagInfo = flag } opts
   | "-o" :: outpath :: opts ->
     parseReplayOptions { replayOpt with ReplayOutputPath = Some outpath } opts
+  | "--stream-timeout" :: streamTimeout :: opts ->
+    let t = Some (Convert.ToInt32 streamTimeout)
+    parseReplayOptions { replayOpt with ReplayStreamTimeout = t } opts
   | args -> replayOpt, args
 
 let postprocessReplay opt ret =
@@ -133,7 +142,9 @@ let replayWithNetwork opt args =
   | poePath :: ip :: port :: _ ->
     let poe, typeEnv = Decoder.loadPoEFromPath poePath
     let port = Convert.ToInt32(port)
-    Executor.runPoEWithNetwork poe typeEnv ip port opt.ReplayLibcPath 1
+    let libcPath = opt.ReplayLibcPath
+    let timeout = opt.ReplayStreamTimeout
+    Executor.runPoEWithNetwork poe typeEnv ip port libcPath 1 timeout
     |> Some
   | _ -> eprintfn "Not enough argument(s) given for replay."; None
 
@@ -160,7 +171,8 @@ let replayWithPipe opt args =
     let args = args.TrimEnd ()
     let flagPath = prepareFlag opt.ReplayFlagInfo
     let libcPath = opt.ReplayLibcPath
-    Executor.runPoEWithPipe poe typeEnv flagPath binPath libcPath args 1
+    let timeout = opt.ReplayStreamTimeout
+    Executor.runPoEWithPipe poe typeEnv flagPath binPath libcPath args 1 timeout
     |> Some
   | _ -> eprintfn "Not enough argument(s) given for replay."; None
 
@@ -169,7 +181,9 @@ let replayWithSSH opt args =
   | poePath :: ip :: port :: id :: pw :: _ ->
     let poe, typeEnv = Decoder.loadPoEFromPath poePath
     let port = Convert.ToInt32(port)
-    Executor.runPoEWithSSH poe typeEnv ip port id pw opt.ReplayLibcPath 1
+    let libcPath = opt.ReplayLibcPath
+    let timeout = opt.ReplayStreamTimeout
+    Executor.runPoEWithSSH poe typeEnv ip port id pw libcPath 1 timeout
     |> Some
   | _ -> eprintfn "Not enough argument(s) given for replay."; None
 

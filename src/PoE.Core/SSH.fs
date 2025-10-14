@@ -32,16 +32,23 @@ type SSHManager(ip, port, id: string, pw: string) =
   let client = new SshClient(ip, port, id, pw)
   do client.Connect()
   let stream = client.CreateShellStreamNoTerminal()
+  let setTimeout = function
+    | Some timeout ->
+      stream.ReadTimeout <- timeout
+      stream.WriteTimeout <- timeout
+    | None ->
+      stream.ReadTimeout <- DefaultTimeout
+      stream.WriteTimeout <- DefaultTimeout
   interface IStreamManager with
     member __.Close() = stream.Close(); client.Disconnect()
-    member __.Read n _timeout =
-      read stream n
-    member __.ReadErr n _timeout =
-      [||] |> Some
-    member __.ReadUntil str _timeout =
-      readUntil stream str
-    member __.ReadAll _timeout =
-      readAll stream
+    member __.Read n timeout =
+      setTimeout timeout; read stream n
+    member __.ReadErr n timeout =
+      setTimeout timeout; [||] |> Some
+    member __.ReadUntil str timeout =
+      setTimeout timeout; readUntil stream str
+    member __.ReadAll timeout =
+      setTimeout timeout; readAll stream
     member __.Write delay data =
       write stream delay data
   interface IDisposable with
