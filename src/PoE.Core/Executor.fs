@@ -740,7 +740,7 @@ let emptyState () =
     LibcPath = ""
     LibcHandle = None }
 
-let initState conn poe flagPath libcPath delay =
+let initState conn poe flagPath libcPath delay timeout =
   let overwrites = parseOverwriteRules poe.Macros
   { Program = [||]
     ProgCounter = 0
@@ -753,7 +753,7 @@ let initState conn poe flagPath libcPath delay =
     Connection = conn
     Stream = None
     StreamErrorSite = None
-    Timeout = None
+    Timeout = timeout
     Delay = delay
     WriteCount = 0
     WriteData = []
@@ -809,9 +809,9 @@ let printFlag = function
     |> printfn "bin   = {%s}"
   | _ -> ()
 
-let private runPoE conn poe typeEnv flagPath libcPath delay =
+let private runPoE conn poe typeEnv flagPath libcPath delay timeout =
   let state =
-    initState conn poe flagPath libcPath delay
+    initState conn poe flagPath libcPath delay timeout
     |> initFunctions poe.Decls typeEnv
     |> evalProgram
   if not state.IsReturning then err None "No return found in submit."
@@ -819,17 +819,17 @@ let private runPoE conn poe typeEnv flagPath libcPath delay =
   printFlag ret
   ret, List.rev state.WriteData, state.SubmittedFlag
 
-let runPoEWithNetwork poe typeEnv ip port libcPath delay =
+let runPoEWithNetwork poe typeEnv ip port libcPath delay timeout =
   let net = Network (ip, port)
-  runPoE net poe typeEnv None libcPath delay
+  runPoE net poe typeEnv None libcPath delay timeout
 
-let runPoEWithPipe poe typeEnv flagPath prog libcPath args delay =
+let runPoEWithPipe poe typeEnv flagPath prog libcPath args delay timeout =
   let proc = Process (prog, args)
-  runPoE proc poe typeEnv flagPath libcPath delay
+  runPoE proc poe typeEnv flagPath libcPath delay timeout
 
-let runPoEWithSSH poe typeEnv ip port id pw libcPath delay =
+let runPoEWithSSH poe typeEnv ip port id pw libcPath delay timeout =
   let net = SSH (ip, port, id, pw)
-  runPoE net poe typeEnv None libcPath delay
+  runPoE net poe typeEnv None libcPath delay timeout
 
 let [<Literal>] private resultPath = "payload.dat"
 

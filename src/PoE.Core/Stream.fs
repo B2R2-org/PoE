@@ -55,7 +55,8 @@ let private readFromStream (s: Stream) n =
     elif size = n then Some buf
     else read buf (idx + size) (n - size)
   let task = Task.Run (fun () -> read buf 0 n)
-  if task.Wait (DefaultTimeout) then task.Result
+  let timeout = s.ReadTimeout
+  if task.Wait (timeout) then task.Result
   else raise (RuntimeException "Read timeout.")
 
 let read stream n =
@@ -92,7 +93,8 @@ let rec private readAllFromStream (s : Stream) =
       buf <- Array.sub tmp 0 size |> Array.append buf
     else buf <- Array.append buf tmp; readAll ()
   let task = Task.Run (fun () -> readAll ())
-  task.Wait (DefaultTimeout) |> ignore
+  let timeout = s.ReadTimeout
+  task.Wait (timeout) |> ignore
   buf
 
 let readAll stream = readAllFromStream stream |> printDbg true |> Some

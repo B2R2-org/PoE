@@ -29,7 +29,6 @@ open System.Net.Sockets
 open PoE.Stream
 
 type NetworkManager (ip, port) =
-  let defaultTimeout = 5000 (* 5 sec. *)
   let conn = new TcpClient (ip, port)
   let sock = conn.GetStream()
   let setTimeout = function
@@ -37,8 +36,8 @@ type NetworkManager (ip, port) =
       sock.ReadTimeout <- timeout
       sock.WriteTimeout <- timeout
     | None ->
-      sock.ReadTimeout <- defaultTimeout
-      sock.WriteTimeout <- defaultTimeout
+      sock.ReadTimeout <- DefaultTimeout
+      sock.WriteTimeout <- DefaultTimeout
   interface IStreamManager with
     member __.Close () = conn.Close ()
     member __.Read n timeout =
