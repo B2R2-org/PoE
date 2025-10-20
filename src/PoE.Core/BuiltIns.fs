@@ -332,6 +332,19 @@ type Pause () =
     Console.ReadLine () |> ignore
     state, UnknownValue TypeUnit
 
+type Pid () =
+  inherit BuiltInFunc ()
+  override __.Name with get() = "pid"
+  override __.ReturnType with get() = TypeInt32
+  override __.ParamTypes with get() = []
+  override __.Execute state args annot =
+    match state.Stream with
+    | None -> err annot "No stream is currently opened."
+    | Some stream ->
+      match stream.Pid with
+      | None -> err annot "Current stream has no associated process id."
+      | Some pid -> state, IntValue (pid, TypeInt32)
+
 module BuiltIns =
   let functions =
     [| Read () :> BuiltInFunc
@@ -349,4 +362,5 @@ module BuiltIns =
        Dump () :> BuiltInFunc
        LibcFuncAddr () :> BuiltInFunc
        LibcStrAddr () :> BuiltInFunc
-       Pause () :> BuiltInFunc |]
+       Pause () :> BuiltInFunc
+       Pid  () :> BuiltInFunc |]
