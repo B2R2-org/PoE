@@ -27,21 +27,7 @@ module PoE.Replayer
 open System
 open System.IO
 
-type ReplayOption = {
-  ReplayLibcPath: string
-  ReplayFlagInfo: (string * int) option
-  ReplayOutputPath: string option
-  ReplayStreamTimeout: int option
-}
-with
-  static member Init () =
-    { ReplayLibcPath = ""
-      ReplayFlagInfo = None
-      ReplayOutputPath = None
-      ReplayStreamTimeout = None }
-
-let errorExit () =
-  eprintfn """
+let [<Literal>] HelpMessage = """
 Usage of the PoE replayer:
 
   * poe eval <PoE expression>
@@ -88,8 +74,24 @@ Replay options:
   -o <output path>          : Specify a path to store PoE's output, which is a
                               return value of PoE's submission (submit block).
   --stream-timeout <time>   : Set a timeout for read and write operations when
-                              communicating over a stream (default: 5 seconds).
+                              communicating over a stream (default: 5000ms).
 """
+
+type ReplayOption = {
+  ReplayLibcPath: string
+  ReplayFlagInfo: (string * int) option
+  ReplayOutputPath: string option
+  ReplayStreamTimeout: int option
+}
+with
+  static member Init () =
+    { ReplayLibcPath = ""
+      ReplayFlagInfo = None
+      ReplayOutputPath = None
+      ReplayStreamTimeout = None }
+
+let errorExit () =
+  eprintfn HelpMessage
   exit 1
 
 let evalAndPrint str =
