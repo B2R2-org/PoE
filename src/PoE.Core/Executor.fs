@@ -516,8 +516,9 @@ and evalCall state fname argvals annot =
     else
       let stream = createStream state
       let state = { state with Stream = Some stream }
+      stream.OnCreate ()
       let state, ret = callAndReturn state argnames argvals body annot
-      stream.Close ()
+      stream.OnClose ()
       { state with VarMap = oldVars; Stream = None }, ret
   | RegularFunction (_, argnames, body) ->
     let state, ret = callAndReturn state argnames argvals body annot

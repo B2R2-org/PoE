@@ -39,7 +39,9 @@ type NetworkManager (ip, port) =
       sock.ReadTimeout <- DefaultTimeout
       sock.WriteTimeout <- DefaultTimeout
   interface IStreamManager with
-    member __.Close () = conn.Close ()
+    member __.Pid = None
+    member __.OnCreate () = ()
+    member __.OnClose () = conn.Close ()
     member __.Read n timeout =
       setTimeout timeout; read sock n
     member __.ReadErr n timeout =

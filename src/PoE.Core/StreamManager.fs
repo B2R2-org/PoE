@@ -24,10 +24,19 @@
 
 namespace PoE
 
+/// Interface for managing streams. Note that we name it as "manager" but it
+/// behaves like a stream itself, i.e., it is also IStreamOperatable and can be
+/// operatable as well.
 type IStreamManager =
-  abstract member Close: unit -> unit
-  abstract member Read: int -> int option -> byte [] option
-  abstract member ReadErr: int -> int option -> byte [] option
-  abstract member ReadUntil: byte [] -> int option -> byte [] option
-  abstract member ReadAll: int option -> byte [] option
-  abstract member Write: int -> byte [] -> bool
+  inherit IStreamOperatable
+
+  abstract Pid: int option
+  abstract OnCreate: unit -> unit
+  abstract OnClose: unit -> unit
+
+and IStreamOperatable =
+  abstract Read: int -> int option -> byte [] option
+  abstract ReadErr: int -> int option -> byte [] option
+  abstract ReadUntil: byte [] -> int option -> byte [] option
+  abstract ReadAll: int option -> byte [] option
+  abstract Write: int -> byte [] -> bool

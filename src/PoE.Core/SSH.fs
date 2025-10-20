@@ -40,7 +40,9 @@ type SSHManager(ip, port, id: string, pw: string) =
       stream.ReadTimeout <- DefaultTimeout
       stream.WriteTimeout <- DefaultTimeout
   interface IStreamManager with
-    member __.Close() = stream.Close(); client.Disconnect()
+    member __.Pid = None
+    member __.OnCreate () = ()
+    member __.OnClose() = stream.Close(); client.Disconnect()
     member __.Read n timeout =
       setTimeout timeout; read stream n
     member __.ReadErr n timeout =

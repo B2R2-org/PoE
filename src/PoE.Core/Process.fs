@@ -60,7 +60,9 @@ type ProcessManager (binPath, args) =
       inStrm.WriteTimeout <- DefaultTimeout
 
   interface IStreamManager with
-    member __.Close () = kill proc.Id
+    member __.Pid = Some proc.Id
+    member __.OnCreate () = ()
+    member __.OnClose () = kill proc.Id
     member __.Read n timeout = setTimeout timeout; read outStrm n
     member __.ReadErr n timeout = setTimeout timeout; read errStrm n
     member __.ReadUntil str timeout = setTimeout timeout; readUntil outStrm str
