@@ -3,13 +3,12 @@ PoE
 
 PoE (Proof-of-Exploit) is a language designed specifically for writing an
 exploit. It provides intuitive and concise syntax, which makes exploit
-development easy and fun. For more details, please refer to our paper:
-+ [Jung Hyun Kim, Steve Gustaman, and Sang Kil Cha. (2024), PoE: A Domain-Specific Language for Exploitation. In Proceedings of the Silicon Valley Cybersecurity Conference.](https://softsec.kaist.ac.kr/~sangkilc/papers/kim-svcc24.pdf)
+development easy and fun.
 
-Currently, PoE runs on an interpreter that we call `PoE.Replayer`, which is a
-[.NET CLI
-tool](https://docs.microsoft.com/en-us/dotnet/core/tools/global-tools). See the
-[tutorial](tutorial) to learn more about PoE and `PoE.Replayer`.
+PoE runs on an interpreter `PoE.Replayer`, which is released as a [.NET tool](https://learn.microsoft.com/en-us/dotnet/core/tools/global-tools) on nuget.org [(link)](https://www.nuget.org/packages/PoE.Replayer).
+
+See the [tutorial](tutorial) to learn more about PoE. For more details, please refer to our paper:
++ [Jung Hyun Kim, Steve Gustaman, and Sang Kil Cha. (2024), PoE: A Domain-Specific Language for Exploitation. In Proceedings of the Silicon Valley Cybersecurity Conference.](https://softsec.kaist.ac.kr/~sangkilc/papers/kim-svcc24.pdf)
 
 ## Features
 
@@ -97,6 +96,6 @@ service:
 poe ssh bof.poe pwnable.kr 9000 bof guest
 ```
 Note that you can also use Remote mode (`net`) when you connect to the remote
-service using the other ways (e.g. via `nc`).
+service using the other ways (e.g., via `nc`).
 
 For more details, please see the [tutorial](tutorial).
