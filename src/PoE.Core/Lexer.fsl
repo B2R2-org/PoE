@@ -365,7 +365,8 @@ and realtoken ctxt =
 #endif
                   Parser.RBRACK (currPos ctxt)
                 }
-  | "{{"        { use stream = new IO.MemoryStream ()
+  | "{{"        {
+                  use stream = new IO.MemoryStream ()
                   use writer = new IO.BinaryWriter (stream)
                   asmtoken ctxt stream writer lexbuf
                 }
@@ -622,15 +623,27 @@ and stringtoken ctxt stream writer =
 
 and asmtoken ctxt stream writer =
   parse
-  | "}}"         { let s = stream.ToArray () |> bytesToStr
+  | "}}"
+    { let s = stream.ToArray() |> bytesToStr
 #if LEXERDEBUG
-                   dbglog "ASM(%s)" s
+      dbglog "ASM(%s)" s
 #endif
-                   Parser.ASMBLK (s, currPos ctxt)
-                 }
-  | [^ '}''}']+  { let bs = lexbuf.Lexeme
-                   append writer (lexeme lexbuf)
-                   nextlines ctxt lexbuf bs
-                   asmtoken ctxt stream writer lexbuf }
+      Parser.ASMBLK (s, currPos ctxt) }
+  | newline
+    { let bs = lexbuf.Lexeme
+      nextlines ctxt lexbuf bs
+      asmtoken ctxt stream writer lexbuf }
+  | ';' [^ '\r' '\n']* newline
+    { let bs = lexbuf.Lexeme
+      nextlines ctxt lexbuf bs
+      asmtoken ctxt stream writer lexbuf }
+  | space
+    { asmtoken ctxt stream writer lexbuf }
+  | [^ '}''}' '\r' '\n' ';']+
+    { let s = lexeme lexbuf
+      let s = s.Trim()
+      let s = s + "\n"
+      append writer s
+      asmtoken ctxt stream writer lexbuf }
   | _
     { raise (ParsingException ("Illegal: " + (lexeme lexbuf), Some ctxt.Line)) }
