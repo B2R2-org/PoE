@@ -31,26 +31,19 @@ open PoE.Stream
 type NetworkManager (ip, port) =
   let conn = new TcpClient (ip, port)
   let sock = conn.GetStream()
-  let setTimeout = function
-    | Some timeout ->
-      sock.ReadTimeout <- timeout
-      sock.WriteTimeout <- timeout
-    | None ->
-      sock.ReadTimeout <- DefaultTimeout
-      sock.WriteTimeout <- DefaultTimeout
   interface IStreamManager with
     member __.Pid = None
     member __.OnCreate () = ()
     member __.OnClose () = conn.Close ()
     member __.Read n timeout =
-      setTimeout timeout; read sock n
+      read sock n timeout
     member __.ReadErr n timeout =
-      setTimeout timeout; [||] |> Some
+      [||] |> Some
     member __.ReadUntil str timeout =
-      setTimeout timeout; readUntil sock str
+      readUntil sock str timeout
     member __.ReadAll timeout =
-      setTimeout timeout; readAll sock
+      readAll sock timeout
     member __.Write delay data =
-      setTimeout None; write sock delay data
+      write sock delay data
   interface IDisposable with
     member __.Dispose () = conn.Close ()

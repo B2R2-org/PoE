@@ -49,24 +49,15 @@ type ProcessManager (binPath, args) =
   let inStrm = proc.StandardInput.BaseStream
   let outStrm = proc.StandardOutput.BaseStream
   let errStrm = proc.StandardError.BaseStream
-  let setTimeout = function
-    | Some timeout ->
-      outStrm.ReadTimeout <- timeout
-      errStrm.ReadTimeout <- timeout
-      inStrm.WriteTimeout <- timeout
-    | None ->
-      outStrm.ReadTimeout <- DefaultTimeout
-      errStrm.ReadTimeout <- DefaultTimeout
-      inStrm.WriteTimeout <- DefaultTimeout
 
   interface IStreamManager with
     member __.Pid = Some proc.Id
     member __.OnCreate () = ()
     member __.OnClose () = kill proc.Id
-    member __.Read n timeout = setTimeout timeout; read outStrm n
-    member __.ReadErr n timeout = setTimeout timeout; read errStrm n
-    member __.ReadUntil str timeout = setTimeout timeout; readUntil outStrm str
-    member __.ReadAll timeout = setTimeout timeout; readAll outStrm
+    member __.Read n timeout = read outStrm n timeout
+    member __.ReadErr n timeout = read errStrm n timeout
+    member __.ReadUntil str timeout = readUntil outStrm str timeout
+    member __.ReadAll timeout = readAll outStrm timeout
     member __.Write delay data = write inStrm delay data
 
   interface IDisposable with

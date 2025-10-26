@@ -31,6 +31,7 @@ open B2R2.RearEnd.Utils
 
 let [<Literal>] DefaultBufSize = 4096
 let [<Literal>] DefaultTimeout = 5000 (* 5 sec. *)
+let [<Literal>] InfiniteTimeout = -1
 
 /// A flag that controls whether the replayer will print out read/write
 /// messages.
@@ -47,7 +48,7 @@ let printDbg isOut bs =
   else ()
   bs
 
-let private readFromStream (s: Stream) n =
+let private readFromStream (s: Stream) n timeout =
   let buf = Array.zeroCreate n
   let rec read buf idx n =
     let size = s.Read (buf, idx, n)
@@ -55,12 +56,12 @@ let private readFromStream (s: Stream) n =
     elif size = n then Some buf
     else read buf (idx + size) (n - size)
   let task = Task.Run (fun () -> read buf 0 n)
-  let timeout = s.ReadTimeout
+  let timeout = Option.defaultValue DefaultTimeout timeout
   if task.Wait (timeout) then task.Result
   else raise (RuntimeException "Read timeout.")
 
-let read stream n =
-  match readFromStream stream n with
+let read stream n timeout =
+  match readFromStream stream n timeout with
   | Some buf -> buf |> printDbg true |> Some
   | None -> None
 
@@ -70,21 +71,25 @@ let private endWith (data : 'a array) (target : 'a array) =
   if dLen < tLen  then false
   else (Array.sub data (dLen-tLen) tLen) = target
 
-let private readUntilFromStream stream target =
+let private readUntilFromStream stream target timeout =
   let rec readUntil cur =
     if endWith cur target then Some cur
     else
-      match readFromStream stream 1 with
+      match readFromStream stream 1 (Some InfiniteTimeout) with
       | Some buf -> buf |> Array.append cur |> readUntil
       | None -> None
-  Array.zeroCreate 0 |> readUntil
+  let cur = Array.zeroCreate 0
+  let task = Task.Run (fun () -> readUntil cur)
+  let timeout = Option.defaultValue DefaultTimeout timeout
+  if task.Wait (timeout) then task.Result
+  else raise (RuntimeException "ReadUntil timeout.")
 
-let readUntil stream target =
-  match readUntilFromStream stream target with
+let readUntil stream target timeout =
+  match readUntilFromStream stream target timeout with
   | Some buf -> buf |> printDbg true |> Some
   | None -> None
 
-let rec private readAllFromStream (s : Stream) =
+let rec private readAllFromStream (s : Stream) timeout =
   let mutable buf = [||]
   let rec readAll () =
     let tmp = Array.zeroCreate DefaultBufSize
@@ -93,11 +98,12 @@ let rec private readAllFromStream (s : Stream) =
       buf <- Array.sub tmp 0 size |> Array.append buf
     else buf <- Array.append buf tmp; readAll ()
   let task = Task.Run (fun () -> readAll ())
-  let timeout = s.ReadTimeout
-  task.Wait (timeout) |> ignore
-  buf
+  let timeout = Option.defaultValue DefaultTimeout timeout
+  if task.Wait (timeout) then buf
+  else raise (RuntimeException "ReadAll timeout.")
 
-let readAll stream = readAllFromStream stream |> printDbg true |> Some
+let readAll stream timeout =
+  readAllFromStream stream timeout |> printDbg true |> Some
 
 let private writeToStream (s : Stream) data =
   try s.Write(data, 0, data.Length); s.Flush(); true
