@@ -132,9 +132,9 @@ let trueValue = BitVecValue (BitArray ([| true |]))
 
 let falseValue = BitVecValue (BitArray ([| false |]))
 
-let isTrue v = v = trueValue
+let isTrue v = isEqual v trueValue
 
-let isFalse v = v = falseValue
+let isFalse v = isEqual v falseValue
 
 let isBoolean v = isTrue v || isFalse v
 
@@ -587,7 +587,7 @@ and evalForLoop state loopvar fini body annot =
   let v = findVar state loopvar annot
   let state, loopcond = evalBoolExpr state (Le (toASTInt annot v, fini, annot))
   if state.IsReturning then state
-  elif loopcond = trueValue && not state.IsBreaking then
+  elif isEqual loopcond trueValue && not state.IsBreaking then
     let state = evalProgram { state with Program = body; ProgCounter = 0 }
     let one = Int (1L, TypeUInt64, annot)
     let state, v' = evalArithExpr state (Add (toASTInt annot v, one, annot))
@@ -599,7 +599,7 @@ and evalForLoop state loopvar fini body annot =
 and evalWhileLoop state condExpr body annot =
   let state, cond = evalExpr state condExpr annot
   if state.IsReturning then state
-  elif cond = trueValue && not state.IsBreaking then
+  elif isEqual cond trueValue && not state.IsBreaking then
     let state' = evalProgram { state with Program = body; ProgCounter = 0 }
     evalWhileLoop state' condExpr body annot
   elif state.IsBreaking then
@@ -683,7 +683,7 @@ and evalStmtRegular state = function
       let state = evalProgram { state with Program = body; ProgCounter = 0 }
       if isEscaping state then state
       else incPC { state with Program = oldprog; ProgCounter = oldpc }
-    if cond = trueValue then evalBody tbody
+    if isEqual cond trueValue then evalBody tbody
     elif not (List.isEmpty fbody) then evalBody fbody
     else incPC state
   | BreakStmt (_) -> { state with ProgCounter = -1; IsBreaking = true }
