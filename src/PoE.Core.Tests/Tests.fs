@@ -29,6 +29,7 @@ open System.Collections
 open PoE
 open PoE.Executor
 open PoE.BitVectorUtils
+open PoE.Core.Tests.TestHelper
 
 module Samples =
   let poe1 = """
@@ -244,10 +245,7 @@ type FactoryTestClass () =
 type ExecutorTestClass () =
   [<TestMethod>]
   member __.``Test runPoE`` () =
-    let poe, typeEnv = Decoder.loadPoEFromString Samples.poe3
-    let cwd = System.IO.Directory.GetCurrentDirectory ()
-    let echoer = System.IO.Path.Combine (cwd, "Echoer")
-    let _, written, _ = runPoEWithPipe poe typeEnv None echoer "" "" 0 None
+    let _, written, _ = runPoEWithEchoer Samples.poe3
     let expectation = [ [|65uy|]; [|66uy|]; [|67uy|]; [|68uy|]; ]
     let res = List.forall2 (fun a b -> a = b) expectation written
     Assert.AreEqual (true, res)
