@@ -26,6 +26,7 @@ namespace PoE.Core.Tests.Executor
 
 open Microsoft.VisualStudio.TestTools.UnitTesting
 open PoE
+open PoE.Core.Tests.EvalValueHelper
 open PoE.Core.Tests.TestHelper
 
 [<TestClass>]
@@ -66,7 +67,7 @@ submit:
   [<TestMethod>]
   member __.``Inline Assembly Test 1`` () =
     let ret, _, _ = runPoEWithEchoer PoE1
-    let bv = ret |> function BitVecValue (v) -> v
+    let bv = getBitVecValue ret
     let bvBytes = BitVectorUtils.bvToBytes bv
     let expectedBytes = [| 0xB0uy; 0x00uy; 0xB3uy; 0x00uy; 0xB1uy; 0x00uy |]
     assertAreByteArrayEqual expectedBytes bvBytes
@@ -74,7 +75,7 @@ submit:
   [<TestMethod>]
   member __.``Inline Assembly Test 2 (Label)`` () =
     let ret, _, _ = runPoEWithEchoer PoE2
-    let bv = ret |> function BitVecValue (v) -> v
+    let bv = getBitVecValue ret
     let bvBytes = BitVectorUtils.bvToBytes bv
     let expectedBytes = [| 0x74uy; 0x04uy; 0x74uy; 0x04uy; 0xEBuy; 0x04uy;
                            0xFEuy; 0xC0uy; 0xFEuy; 0xC3uy; 0xC3uy |]

@@ -27,6 +27,7 @@ namespace PoE.Core.Tests.Executor
 open Microsoft.VisualStudio.TestTools.UnitTesting
 open PoE
 open PoE.Core.Tests.TestHelper
+open PoE.Core.Tests.EvalValueHelper
 
 [<TestClass>]
 type LoopTests () =
@@ -70,7 +71,7 @@ submit:
   [<TestMethod>]
   member __.``Loop Test 1`` () =
     let ret, _, _ = runPoEWithEchoer PoE1
-    let bv = ret |> function BitVecValue (v) -> v
+    let bv = getBitVecValue ret
     let bvBytes = BitVectorUtils.bvToBytes bv
     let expectedBytes = [| 10uy; 9uy; 9uy |]
     assertAreByteArrayEqual expectedBytes bvBytes
