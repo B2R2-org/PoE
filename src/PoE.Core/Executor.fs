@@ -72,6 +72,8 @@ let isEqual v1 v2 =
   | IntValue (i1, t1), IntValue (i2, t2) -> t1 = t2 && i1 = i2
   | _, _ -> false
 
+let isEscaping state = state.IsReturning || state.IsBreaking
+
 let assertValidInt n t annot =
   if (ExprType.ofInt64 n |> ExprType.toBitSize) <= ExprType.toBitSize t then ()
   else err annot "Invalid integer value is given."
@@ -676,16 +678,13 @@ and evalStmtRegular state = function
     let state, cond = evalExpr state cond annot
     let oldprog = state.Program
     let oldpc = state.ProgCounter
-    if cond = trueValue then
-      let state =
-        evalProgram { state with Program = List.toArray tbody; ProgCounter = 0 }
-      if state.IsReturning || state.IsBreaking then state
+    let evalBody body =
+      let body = List.toArray body
+      let state = evalProgram { state with Program = body; ProgCounter = 0 }
+      if isEscaping state then state
       else incPC { state with Program = oldprog; ProgCounter = oldpc }
-    elif not (List.isEmpty fbody) then
-      let state =
-        evalProgram { state with Program = List.toArray fbody; ProgCounter = 0 }
-      if state.IsReturning || state.IsReturning then state
-      else incPC { state with Program = oldprog; ProgCounter = oldpc }
+    if cond = trueValue then evalBody tbody
+    elif not (List.isEmpty fbody) then evalBody fbody
     else incPC state
   | BreakStmt (_) -> { state with ProgCounter = -1; IsBreaking = true }
   | NopStmt (_) -> incPC state
