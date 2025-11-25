@@ -349,28 +349,42 @@ type WriteAfter () =
   inherit BuiltInFunc ()
   override __.Name with get() = "writeafter"
   override __.ReturnType with get() = TypeAnyBV
-  override __.ParamTypes with get() = [ TypeAnyBV; TypeAny ]
+  override __.ParamTypes with get() = [ TypeAny; TypeAny ] 
   override __.Execute state args annot =
     match args with
-    | BitVecValue delim :: payloadRaw :: _ ->
+    | arg1 :: payloadRaw :: _ ->
       let stream = getStream state annot
-      let delimBytes = bvToBytes delim
-      match stream.ReadUntil delimBytes state.Timeout with
+      let maybeReadData = 
+        match arg1 with
+        | BitVecValue delim -> 
+            stream.ReadUntil (bvToBytes delim) state.Timeout
+        | IntValue (n, _) -> 
+            if n < 0L then stream.ReadAll state.Timeout
+            else stream.Read (Convert.ToInt32 n) state.Timeout
+        | _ -> None 
+      match maybeReadData with
       | None ->
-        let emptyVal = [||] |> bytesToBV |> BitVecValue
-        { state with StreamErrorSite = Some annot }, emptyVal
+         let isInvalidArg = 
+            match arg1 with 
+            | BitVecValue _ | IntValue _ -> false 
+            | _ -> true
+         if isInvalidArg then 
+            err annot "Invalid first argument for writeafter. Expected String (delimiter) or Int (length)."
+         else
+            let emptyVal = [||] |> bytesToBV |> BitVecValue
+            { state with StreamErrorSite = Some annot }, emptyVal
       | Some readBytes ->
-        let bv = toBV annot payloadRaw
-        let bv = if shouldOverwrite state then overwrite state bv else bv
-        let dataToWrite = bvToBytes bv
-        let wroteData =
-          if stream.Write state.Delay dataToWrite then dataToWrite :: state.WriteData
-          else state.WriteData
-        let returnVal = readBytes |> bytesToBV |> BitVecValue
-        { state with WriteData = wroteData; WriteCount = state.WriteCount + 1 },
-        returnVal
-    | _ -> err annot "Invalid parameters for writeafter. Usage: writeafter(delimiter, payload)"
-
+         let bv = toBV annot payloadRaw
+         let bv = if shouldOverwrite state then overwrite state bv else bv
+         let dataToWrite = bvToBytes bv
+         let wroteData =
+           if stream.Write state.Delay dataToWrite then dataToWrite :: state.WriteData
+           else state.WriteData
+         let returnVal = readBytes |> bytesToBV |> BitVecValue
+         { state with WriteData = wroteData; WriteCount = state.WriteCount + 1 },
+         returnVal
+    | _ -> err annot "Invalid parameters for writeafter."
+    
 module BuiltIns =
   let functions =
     [| Read () :> BuiltInFunc
