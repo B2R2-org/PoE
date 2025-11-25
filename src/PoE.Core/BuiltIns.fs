@@ -64,18 +64,13 @@ module private BuiltInHelper =
     let cnt = rule.EOffset - rule.SOffset + 1
     replaceBV bv rule.SOffset cnt rule.SourceBV
 
-type Read () =
-  inherit BuiltInFunc ()
-  override __.Name with get() = "read"
-  override __.ReturnType with get() = TypeAnyBV
-  override __.ParamTypes with get() = [ TypeAny ]
-  override __.Execute state args annot =
+  let read state annot v =
     let returnBV maybeBuf =
       let v = Option.defaultValue [||] maybeBuf |> bytesToBV |> BitVecValue
       let isError = Option.isNone maybeBuf
       if isError then { state with StreamErrorSite = Some annot }, v
       else state, v
-    match List.head args with
+    match v with
     | IntValue (v, _) ->
       let stream = getStream state annot
       if v < 0L then stream.ReadAll state.Timeout
@@ -88,13 +83,7 @@ type Read () =
       |> returnBV
     | _ -> err annot "Invalid read expression."
 
-type Write () =
-  inherit BuiltInFunc ()
-  override __.Name with get() = "write"
-  override __.ReturnType with get() = TypeUnit
-  override __.ParamTypes with get() = [ TypeAny ]
-  override __.Execute state args annot =
-    let v = List.head args
+  let write state annot v =
     let stream = getStream state annot
     let bv = toBV annot v
     let bv = if shouldOverwrite state then overwrite state bv else bv
@@ -104,6 +93,35 @@ type Write () =
       else state.WriteData
     { state with WriteData = data; WriteCount = state.WriteCount + 1 },
     UnknownValue TypeUnit
+
+type Read () =
+  inherit BuiltInFunc ()
+  override __.Name with get() = "read"
+  override __.ReturnType with get() = TypeAnyBV
+  override __.ParamTypes with get() = [ TypeAny ]
+  override __.Execute state args annot =
+    read state annot <| List.head args
+
+type Write () =
+  inherit BuiltInFunc ()
+  override __.Name with get() = "write"
+  override __.ReturnType with get() = TypeUnit
+  override __.ParamTypes with get() = [ TypeAny ]
+  override __.Execute state args annot =
+    write state annot <| List.head args
+
+type WriteAfter () =
+  inherit BuiltInFunc ()
+  override __.Name with get() = "writeafter"
+  override __.ReturnType with get() = TypeAnyBV
+  override __.ParamTypes with get() = [ TypeAny; TypeAny ]
+  override __.Execute state args annot =
+    match args with
+    | keyword :: v :: _ ->
+      let state, ret = read state annot keyword
+      let state, _ = write state annot v
+      state, ret
+    | _ -> err annot "Invalid parameters for writeafter."
 
 type Atoi () =
   inherit BuiltInFunc ()
@@ -349,6 +367,7 @@ module BuiltIns =
   let functions =
     [| Read () :> BuiltInFunc
        Write () :> BuiltInFunc
+       WriteAfter () :> BuiltInFunc
        Atoi () :> BuiltInFunc
        Itoa () :> BuiltInFunc
        Delay () :> BuiltInFunc
