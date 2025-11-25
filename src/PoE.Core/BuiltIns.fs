@@ -345,10 +345,37 @@ type Pid () =
       | None -> err annot "Current stream has no associated process id."
       | Some pid -> state, IntValue (pid, TypeInt32)
 
+type WriteAfter () =
+  inherit BuiltInFunc ()
+  override __.Name with get() = "writeafter"
+  override __.ReturnType with get() = TypeAnyBV
+  override __.ParamTypes with get() = [ TypeAnyBV; TypeAny ]
+  override __.Execute state args annot =
+    match args with
+    | BitVecValue delim :: payloadRaw :: _ ->
+      let stream = getStream state annot
+      let delimBytes = bvToBytes delim
+      match stream.ReadUntil delimBytes state.Timeout with
+      | None ->
+        let emptyVal = [||] |> bytesToBV |> BitVecValue
+        { state with StreamErrorSite = Some annot }, emptyVal
+      | Some readBytes ->
+        let bv = toBV annot payloadRaw
+        let bv = if shouldOverwrite state then overwrite state bv else bv
+        let dataToWrite = bvToBytes bv
+        let wroteData =
+          if stream.Write state.Delay dataToWrite then dataToWrite :: state.WriteData
+          else state.WriteData
+        let returnVal = readBytes |> bytesToBV |> BitVecValue
+        { state with WriteData = wroteData; WriteCount = state.WriteCount + 1 },
+        returnVal
+    | _ -> err annot "Invalid parameters for writeafter. Usage: writeafter(delimiter, payload)"
+
 module BuiltIns =
   let functions =
     [| Read () :> BuiltInFunc
        Write () :> BuiltInFunc
+       WriteAfter () :> BuiltInFunc
        Atoi () :> BuiltInFunc
        Itoa () :> BuiltInFunc
        Delay () :> BuiltInFunc
