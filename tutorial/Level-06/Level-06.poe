@@ -1,0 +1,11 @@
+act debug_act():
+  dbgascii itoa(pid())
+  pause()
+
+  // do your stuffs
+
+  pause() // pause before the end to debug before exiting
+  return 1
+
+submit:
+  return debug_act()
