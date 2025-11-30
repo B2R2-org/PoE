@@ -22,29 +22,46 @@
 
  *)
 
-module PoE.Core.Tests.TestHelper
+namespace PoE.Core.Tests.Executor
 
 open Microsoft.VisualStudio.TestTools.UnitTesting
-open System
-open System.Text
 open PoE
-open PoE.Executor
+open PoE.Core.Tests.EvalValueHelper
+open PoE.Core.Tests.TestHelper
 
-let [<Literal>] EchoerName = "Echoer"
+[<TestClass>]
+type WriteAfterTests() =
+  let [<Literal>] PoE1 = """
+act func():
+  write("Input a password:\n")
+  bv bytes = writeafter("password:", "kimchi\n")
+  bv rest = read(-1)
+  return bytes . rest
 
-let newLine = Environment.NewLine
+submit:
+  return func()
+"""
 
-let runPoEWithEchoer poe =
-  let poe, typeEnv = Decoder.loadPoEFromString poe
-  let cwd = System.IO.Directory.GetCurrentDirectory ()
-  let echoerPath = System.IO.Path.Combine (cwd, EchoerName)
-  runPoEWithPipe poe typeEnv None echoerPath "" "" 0 None
+  let [<Literal>] PoE2 = """
+act func():
+  bv v = writeafter("password:", "kimchi")
+  return v
 
-let assertAreByteArrayEqual (expected: byte[]) (actual: byte[]) =
-  Assert.AreEqual (expected.Length, actual.Length,
-                   "Byte arrays have different lengths.")
-  for i in 0 .. expected.Length - 1 do Assert.AreEqual (expected[i], actual[i])
+submit:
+  return func()
+"""
 
-let getByteArrayFromStringWithProperNewLines (s: string) =
-  s.Replace("\n", newLine)
-  |> Encoding.ASCII.GetBytes
+  [<TestMethod>]
+  member __.``WriteAfter Test 1`` () =
+    let ret, _, _ = runPoEWithEchoer PoE1
+    let bv = getBitVecValue ret
+    let bvBytes = BitVectorUtils.bvToBytes bv
+    let expectedString = "Input a password:\nkimchi\n"
+    let expectedBytes = getByteArrayFromStringWithProperNewLines expectedString
+    assertAreByteArrayEqual expectedBytes bvBytes
+
+  [<TestMethod>]
+  member __.``WriteAfter Test 2`` () =
+    Assert.ThrowsException<RuntimeException>(fun () ->
+      runPoEWithEchoer PoE2 |> ignore)
+    |> ignore
