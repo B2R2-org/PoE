@@ -11,3 +11,4 @@ Read the following tutorials to learn about PoE.
 - [Level 03](Level-03)
 - [Level 04](Level-04)
 - [Level 05](Level-05)
+- [Level 06](Level-06)
