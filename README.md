@@ -26,11 +26,11 @@ you can easily install the released version of PoE via .NET.
 
 ### Prerequisite
 
-+ [.NET 9+](https://dotnet.microsoft.com/en-us/download)
++ [.NET 10+](https://dotnet.microsoft.com/en-us/download)
 
 ### Instruction
 
-First, make sure you have installed .NET 9+ on your machine so that you can run
+First, make sure you have installed .NET 10+ on your machine so that you can run
 the command `dotnet` from your terminal.
 
 Next, just run the following command to install `PoE.Replayer`:
