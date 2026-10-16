@@ -12,6 +12,7 @@
     <Compile Include="Executor\InlineAssemblyTests.fs" />
     <Compile Include="Executor\LoopTests.fs" />
     <Compile Include="Executor\WriteAfterTests.fs" />
+    <Compile Include="RegressionTests.fs" />
     <Compile Include="Tests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

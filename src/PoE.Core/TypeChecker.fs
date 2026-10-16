@@ -52,6 +52,8 @@ module TypeChecker =
     | TypeUnit, TypeUnit -> ()
     | TypeFunction (lret, largs), TypeFunction (rret, rargs) ->
       assertTypeConsistency annot lret rret
+      if List.length largs <> List.length rargs then
+        TypeEnvironment.Err annot "Function types have different arities."
       List.iter2 (fun l r -> assertTypeConsistency annot l r) largs rargs
     | _ -> TypeEnvironment.Err annot ("Type mismatch ("
                                      + ExprType.toString lhs
@@ -68,12 +70,13 @@ module TypeChecker =
     if ExprType.isIntType soff && ExprType.isIntType eoff then TypeAnyBV
     else TypeEnvironment.Err annot "Extraction offset needs to be an integer."
 
-  let computeFuncType func args annot =
+  let computeFuncType name func args annot =
     match func with
     | TypeFunction (expectedRet, expectedArgs) ->
-      if List.length expectedArgs = List.length args then
-        List.iter2 (assertTypeConsistency annot) expectedArgs args
-      else () (* Loose check. *)
+      let count = List.length args
+      BuiltIns.checkArity (TypeEnvironment.Err annot) name
+        (List.length expectedArgs) count
+      List.iter2 (assertTypeConsistency annot) (List.take count expectedArgs) args
       expectedRet
     | _ -> TypeEnvironment.Err annot "Invalid function type."
 
@@ -171,7 +174,7 @@ module TypeChecker =
     | Call (name, args, annot) ->
       let funcType = env.FindSymbolType name annot
       let argsType = List.map (computeExprType env) args
-      computeFuncType funcType argsType annot
+      computeFuncType name funcType argsType annot
     | AsmExpr (_, asm, replacements, annot) ->
       replacements |> List.map (computeExprType env) |> assertReplacements annot
       let numPlaceholders = ASTUtils.countAsmPlaceholders asm
@@ -257,11 +260,9 @@ module TypeChecker =
     |> List.map (computeExprType env)
 
   let checkFuncCall (env: TypeEnvironment) name args annot =
-    match env.FindSymbolType name annot with
-    | TypeFunction (_retType, knownArgTypes) ->
-      let inputArgTypes = computeTypesOfExprs env args
-      List.iter2 (assertTypeConsistency annot) knownArgTypes inputArgTypes
-    | _ -> TypeEnvironment.Err annot "Invalid function type."
+    let funcType = env.FindSymbolType name annot
+    let argTypes = computeTypesOfExprs env args
+    computeFuncType name funcType argTypes annot |> ignore
 
   let rec checkBlock env name = function
     | VarStmt (vTyp, vars, annot) :: next ->
@@ -282,8 +283,8 @@ module TypeChecker =
       let ityp = computeExprType env init
       let ftyp = computeExprType env fini
       assertTypeConsistency annot ityp ftyp
-      env.AddSymbolType vname ityp annot
       env.EnterScope ()
+      env.AddSymbolType vname ityp annot
       checkBlock env name body
       env.ExitScope ()
       checkBlock env name next

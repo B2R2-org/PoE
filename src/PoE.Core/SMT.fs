@@ -54,11 +54,8 @@ let getZ3ExprFromVar map ctxt name =
     e
 
 let isSignedOp ltyp rtyp =
-  match ltyp, rtyp with
-  | TypeInt8, TypeInt8
-  | TypeInt16, TypeInt16
-  | TypeInt32, TypeInt32
-  | TypeInt64, TypeInt64 -> true
+  match TypeChecker.meetType None ltyp rtyp with
+  | TypeInt8 | TypeInt16 | TypeInt32 | TypeInt64 | TypeAnyInt -> true
   | _ -> false
 
 let rec getType map = function
@@ -66,7 +63,7 @@ let rec getType map = function
     match Map.find name map with
     | IntValue (_, t) -> t
     | BitVecValue bv -> TypeBV bv.Count
-    | UnknownValue _ -> TypeAny
+    | UnknownValue t -> t
   | BitVector (bv, _) -> TypeBV bv.Count
   | Int (_, t, _) -> t
   | Unit -> TypeAny
@@ -151,7 +148,7 @@ let rec toZ3 map ({ Z3Ctxt = z3 } as ctxt) annot = function
     let eoff = getIntVal map eoff
     z3.MkExtract (eoff, soff, toZ3 map ctxt annot e)
   | Concat (l, r, _) ->
-    z3.MkConcat (toZ3 map ctxt annot l, toZ3 map ctxt annot r)
+    z3.MkConcat (toZ3 map ctxt annot r, toZ3 map ctxt annot l)
   | Ite (cond, texp, fexp, _) ->
     let cond = boolToZ3 map ctxt cond
     let t = toZ3 map ctxt annot texp
@@ -197,7 +194,7 @@ let evalConstDecl (m: Microsoft.Z3.Model) state (f: Microsoft.Z3.FuncDecl) =
     match findVar state symName None with
     | UnknownValue t ->
       if ExprType.isIntType t then
-        let n = adjustIntByType n.Int64 t None
+        let n = adjustIntByType (int64 n.UInt64) t None
         addVar state symName (IntValue (n, t))
       else
         let bv = n.BigInteger.ToByteArray () |> BitVectorUtils.bytesToBV

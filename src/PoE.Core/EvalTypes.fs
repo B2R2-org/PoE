@@ -75,6 +75,8 @@ and [<AbstractClass>] BuiltInFunc () =
   abstract member Name: string
   abstract member ReturnType: ExprType
   abstract member ParamTypes: ExprType list
+  abstract member MinParamCount: int
+  default this.MinParamCount = List.length this.ParamTypes
   abstract member Execute: EvalState
                         -> EvalValue list
                         -> Annotation

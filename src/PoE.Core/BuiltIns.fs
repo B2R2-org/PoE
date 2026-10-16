@@ -125,19 +125,28 @@ type WriteAfter () =
 
 type Atoi () =
   inherit BuiltInFunc ()
+
+  let inferType (n: int64) =
+    if n < 0L then TypeInt64 // Keep negative values unmasked through arithmetic.
+    elif n <= int64 SByte.MaxValue then TypeInt8
+    elif n <= int64 Int16.MaxValue then TypeInt16
+    elif n <= int64 Int32.MaxValue then TypeInt32
+    else TypeInt64
+
   override __.Name with get() = "atoi"
   override __.ReturnType with get() = TypeAnyInt
   override __.ParamTypes with get() = [ TypeAnyBV; TypeAnyInt ]
+  override __.MinParamCount with get() = 1
   override __.Execute state args annot =
     match args with
     | BitVecValue bv :: IntValue (basenum, _) :: _ ->
       let s = bvToBytes bv |> bytesToStr
       let n = Convert.ToInt64 (s.Trim(), int basenum)
-      state, IntValue (n, ExprType.ofInt64 n)
+      state, IntValue (n, inferType n)
     | BitVecValue bv :: [] ->
       let s = bvToBytes bv |> bytesToStr
       let n = Convert.ToInt64 (s.Trim(), 10)
-      state, IntValue (n, ExprType.ofInt64 n)
+      state, IntValue (n, inferType n)
     | _ -> err annot "Invalid parameter for atoi."
 
 type Itoa () =
@@ -145,6 +154,7 @@ type Itoa () =
   override __.Name with get() = "itoa"
   override __.ReturnType with get() = TypeAnyBV
   override __.ParamTypes with get() = [ TypeAnyInt; TypeAnyInt ]
+  override __.MinParamCount with get() = 1
   override __.Execute state args annot =
     match args with
     | IntValue (v, _) :: IntValue (10L, _) :: _ ->
@@ -221,7 +231,7 @@ type Le2be () =
 
 type Be2le () =
   inherit Le2be ()
-  override __.Name with get() = "le2be"
+  override __.Name with get() = "be2le"
 
 /// Network text presentation (P) to numeric (N). Similar to inet_pton.
 type P2n () =
@@ -260,10 +270,11 @@ type Replace () =
       if soff >= 0 && eoff = -1 && dst.Length > soff then
         state,
         BitVecValue (replaceBV dst soff (dst.Length - soff) src)
-      elif soff < 0 && eoff < 0 && soff < eoff then
+      elif soff < 0 && eoff < 0 && soff <= eoff then
+        let count = eoff - soff + 1
         let soff = dst.Length + soff
         state,
-        BitVecValue (replaceBV dst soff (soff + eoff + 1) src)
+        BitVecValue (replaceBV dst soff count src)
       else
         state,
         BitVecValue (replaceBV dst soff (eoff - soff + 1) src)
@@ -383,3 +394,15 @@ module BuiltIns =
        LibcStrAddr () :> BuiltInFunc
        Pause () :> BuiltInFunc
        Pid  () :> BuiltInFunc |]
+
+  let checkArity onError name maxCount actualCount =
+    let minCount =
+      functions
+      |> Array.tryFind (fun fn -> fn.Name = name)
+      |> Option.map (fun fn -> fn.MinParamCount)
+      |> Option.defaultValue maxCount
+    if actualCount < minCount || actualCount > maxCount then
+      let expected =
+        if minCount = maxCount then string maxCount
+        else $"{minCount} to {maxCount}"
+      onError $"Function `{name}' expects {expected} argument(s), got {actualCount}."

@@ -128,6 +128,24 @@ let prepareIntOperands lhs rhs annot =
     IntValue (adjustIntByType rn ty annot, ty)
   | _ -> err annot (sprintf "Type mismatch (%A vs. %A)" lhs rhs)
 
+let private prepareLoopBounds init fini annot =
+  let rec normalize = function
+    | IntValue (n, t) when ExprType.isIntType t ->
+      recoverSign n t, ExprType.isUnsignedIntType t
+    | BitVecValue bv -> intValue TypeUInt64 bv false |> normalize
+    | _ -> err annot "Loop bounds must be integers."
+  let first, firstUnsigned = normalize init
+  let last, lastUnsigned = normalize fini
+  let hasNegative =
+    (not firstUnsigned && first < 0L) || (not lastUnsigned && last < 0L)
+  let hasLargeUnsigned =
+    (firstUnsigned && first < 0L) || (lastUnsigned && last < 0L)
+  if hasNegative && hasLargeUnsigned then
+    err annot "Loop bounds do not fit a common 64-bit integer type."
+  // Preserve unsigned counters for nonnegative ranges, including large u64s.
+  let typ = if hasNegative then TypeInt64 else TypeUInt64
+  IntValue (first, typ), IntValue (last, typ)
+
 let trueValue = BitVecValue (BitArray ([| true |]))
 
 let falseValue = BitVecValue (BitArray ([| false |]))
@@ -137,6 +155,10 @@ let isTrue v = isEqual v trueValue
 let isFalse v = isEqual v falseValue
 
 let isBoolean v = isTrue v || isFalse v
+
+let private conditionValue annot = function
+  | BitVecValue bv when bv.Count = 1 -> bv.[0]
+  | _ -> err annot "Condition must be a one-bit bitvector."
 
 let eq lhs rhs = if isEqual lhs rhs then trueValue else falseValue
 
@@ -485,11 +507,8 @@ and evalBVMult state v multiplier annot =
 
 and evalIte state cond texp fexp annot =
   let state, cond = evalExpr state cond annot
-  match cond with
-  | BitVecValue _ ->
-    if isEqual trueValue cond then evalExpr state texp annot
-    else evalExpr state fexp annot
-  | _ -> err annot "Invalid condition for ite."
+  if conditionValue annot cond then evalExpr state texp annot
+  else evalExpr state fexp annot
 
 and updateFuncArg annot state vardef value =
   let state, v = evalExpr state value annot
@@ -512,7 +531,13 @@ and callAndReturn state argnames argvals body annot =
 
 and evalCall state fname argvals annot =
   let oldVars = state.VarMap
-  match findFunction state fname annot with
+  let fn = findFunction state fname annot
+  let count =
+    match fn with
+    | RegularFunction (_, args, _) | ActionFunction (_, args, _) -> List.length args
+    | BuiltinFunction (_, fn) -> List.length fn.ParamTypes
+  BuiltIns.checkArity (err annot) fname count (List.length argvals)
+  match fn with
   | ActionFunction (_, argnames, body) ->
     if EvalUtils.isAct state then err annot "Nested acts are not supported."
     else
@@ -584,28 +609,32 @@ and evalVars state vType decls annot =
   | [] -> state
 
 and evalForLoop state loopvar fini body annot =
-  let v = findVar state loopvar annot
-  let state, loopcond = evalBoolExpr state (Le (toASTInt annot v, fini, annot))
   if state.IsReturning then state
-  elif isEqual loopcond trueValue && not state.IsBreaking then
-    let state = evalProgram { state with Program = body; ProgCounter = 0 }
-    let one = Int (1L, TypeUInt64, annot)
-    let state, v' = evalArithExpr state (Add (toASTInt annot v, one, annot))
-    let state' = addVar state loopvar v'
-    evalForLoop state' loopvar fini body annot
   elif state.IsBreaking then { state with IsBreaking = false }
-  else state
+  else
+    let v = findVar state loopvar annot
+    let compare = chooseRightBinOp v fini sle le annot
+    if isTrue (compare v fini annot) then
+      let state = evalProgram { state with Program = body; ProgCounter = 0 }
+      if isEscaping state || isEqual v fini then
+        { state with IsBreaking = false }
+      else
+        let one = IntValue (1L, computeRuntimeType v)
+        let state = addVar state loopvar (add v one annot)
+        evalForLoop state loopvar fini body annot
+    else state
 
 and evalWhileLoop state condExpr body annot =
-  let state, cond = evalExpr state condExpr annot
   if state.IsReturning then state
-  elif isEqual cond trueValue && not state.IsBreaking then
-    let state' = evalProgram { state with Program = body; ProgCounter = 0 }
-    evalWhileLoop state' condExpr body annot
   elif state.IsBreaking then
     { state with IsBreaking = false }
   else
-    state
+    let state, cond = evalExpr state condExpr annot
+    if conditionValue annot cond then
+      let state' = evalProgram { state with Program = body; ProgCounter = 0 }
+      evalWhileLoop state' condExpr body annot
+    else
+      state
 
 and pushVarIntoScope state v init =
   match Map.tryFind v state.VarMap with
@@ -660,9 +689,9 @@ and evalStmtRegular state = function
   | ForStmt (v, init, fini, body, annot) ->
     let oldprog = state.Program
     let oldpc = state.ProgCounter
-    let state, init = evalExpr state (TypeCast (TypeUInt64, init, annot)) annot
-    let state, fini = evalExpr state (TypeCast (TypeUInt64, fini, annot)) annot
-    let fini = toASTInt annot fini
+    let state, init = evalExpr state init annot
+    let state, fini = evalExpr state fini annot
+    let init, fini = prepareLoopBounds init fini annot
     let state, popFn = pushVarIntoScope state v init
     let state = evalForLoop state v fini (List.toArray body) annot
     let state = popFn state
@@ -683,7 +712,7 @@ and evalStmtRegular state = function
       let state = evalProgram { state with Program = body; ProgCounter = 0 }
       if isEscaping state then state
       else incPC { state with Program = oldprog; ProgCounter = oldpc }
-    if isEqual cond trueValue then evalBody tbody
+    if conditionValue annot cond then evalBody tbody
     elif not (List.isEmpty fbody) then evalBody fbody
     else incPC state
   | BreakStmt (_) -> { state with ProgCounter = -1; IsBreaking = true }
